@@ -1,4 +1,8 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command, get_commands
+from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
@@ -137,3 +141,34 @@ class StaffContentTests(APITestCase):
         deleted = self.client.delete(f"/api/staff/news/{news.data['id']}/")
         self.assertEqual(deleted.status_code, 204)
         self.assertEqual(NewsPost.objects.count(), 0)
+
+
+class CreateSuTests(TestCase):
+    def test_createsu_is_registered(self):
+        self.assertIn("createsu", get_commands())
+
+    def test_creates_superuser_from_env(self):
+        User = get_user_model()
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "deployadmin",
+            "DJANGO_SUPERUSER_PASSWORD": "pass@123",
+            "DJANGO_SUPERUSER_EMAIL": "admin@igqs.edu.bd",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            call_command("createsu")
+        user = User.objects.get(username="deployadmin")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password("pass@123"))
+
+    def test_skips_when_password_missing(self):
+        User = get_user_model()
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "orphan",
+            "DJANGO_SUPERUSER_PASSWORD": "",
+            "STAFF_USERNAME": "",
+            "STAFF_PASSWORD": "",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            call_command("createsu")
+        self.assertFalse(User.objects.filter(username="orphan").exists())
