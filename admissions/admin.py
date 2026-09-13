@@ -1,6 +1,20 @@
 from django.contrib import admin
 
-from .models import AdmissionApplication, AdmissionFee, PaymentMethod
+from .models import AdmissionApplication, AdmissionFee, GuardianSession, PaymentMethod, PhoneOtp
+
+
+@admin.register(PhoneOtp)
+class PhoneOtpAdmin(admin.ModelAdmin):
+    list_display = ("phone", "expires_at", "attempts", "consumed_at", "created_at")
+    search_fields = ("phone",)
+    readonly_fields = ("code_hash", "created_at")
+
+
+@admin.register(GuardianSession)
+class GuardianSessionAdmin(admin.ModelAdmin):
+    list_display = ("phone", "expires_at", "created_at")
+    search_fields = ("phone",)
+    readonly_fields = ("token_hash", "created_at")
 
 
 @admin.register(AdmissionFee)

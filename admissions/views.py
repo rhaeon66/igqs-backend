@@ -4,10 +4,10 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from content.models import CurriculumGrade
-
+from .eligibility import ADMISSION_CLASS_SLUGS, admission_grades
 from .models import AdmissionApplication, AdmissionFee, PaymentMethod
-from .receipts import issue_receipt
+from .phone import PhoneError, get_guardian_session, send_otp, verify_otp
+from .receipts import issue_receipt, notify_staff_new_application
 from .serializers import (
     AdmissionApplicationSerializer,
     AdmissionFeeSerializer,
@@ -87,11 +87,15 @@ def application_payload(application, request):
 
 class ApplyingClassListView(APIView):
     def get(self, request):
-        lang = "bn" if request.query_params.get("lang") == "bn" else "en"
-        grades = CurriculumGrade.objects.all()
-        return Response(
-            [{"slug": g.slug, "name": g.localized("name", lang)} for g in grades]
-        )
+        lang = "en" if request.query_params.get("lang") == "en" else "bn"
+        grades = admission_grades()
+        ordered = {slug: None for slug in ADMISSION_CLASS_SLUGS}
+        for grade in grades:
+            ordered[grade.slug] = {
+                "slug": grade.slug,
+                "name": grade.localized("name", lang),
+            }
+        return Response([item for item in ordered.values() if item])
 
 
 class AdmissionInfoView(APIView):
@@ -114,18 +118,82 @@ class AdmissionInfoView(APIView):
         )
 
 
+def phone_error_response(exc: PhoneError):
+    return Response(
+        {"detail": exc.message, "code": exc.code},
+        status=exc.status,
+    )
+
+
+class SendOtpView(APIView):
+    def post(self, request):
+        try:
+            return Response(send_otp(request.data.get("phone") or ""))
+        except PhoneError as exc:
+            return phone_error_response(exc)
+
+
+class VerifyOtpView(APIView):
+    def post(self, request):
+        try:
+            return Response(
+                verify_otp(request.data.get("phone") or "", request.data.get("otp") or "")
+            )
+        except PhoneError as exc:
+            return phone_error_response(exc)
+
+
+class GuardianSessionView(APIView):
+    def get(self, request):
+        session = get_guardian_session(request)
+        if not session:
+            return Response(
+                {"detail": "Phone verification is required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        return Response({"ok": True, "phone": session.phone})
+
+
 class AdmissionApplicationCreateView(generics.CreateAPIView):
     serializer_class = AdmissionApplicationSerializer
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        session = get_guardian_session(request)
+        if not session:
+            return Response(
+                {"detail": "Verify your mobile number before submitting payment."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        data = request.data.copy()
+        data["mobile"] = session.phone
+        data["payer_mobile"] = session.phone
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         application = serializer.save()
         issue_receipt(application, send_email=True)
+        notify_staff_new_application(application)
         application.refresh_from_db()
         return Response(
             application_payload(application, request),
             status=status.HTTP_201_CREATED,
+        )
+
+
+class MyApplicationsView(APIView):
+    def get(self, request):
+        session = get_guardian_session(request)
+        if not session:
+            return Response(
+                {"detail": "Phone verification is required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        applications = AdmissionApplication.objects.filter(mobile=session.phone)
+        return Response(
+            {
+                "phone": session.phone,
+                "count": applications.count(),
+                "results": [application_payload(item, request) for item in applications],
+            }
         )
 
 

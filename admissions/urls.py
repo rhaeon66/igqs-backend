@@ -5,6 +5,10 @@ from . import staff_views, views
 urlpatterns = [
     path("classes/", views.ApplyingClassListView.as_view()),
     path("info/", views.AdmissionInfoView.as_view()),
+    path("otp/send/", views.SendOtpView.as_view()),
+    path("otp/verify/", views.VerifyOtpView.as_view()),
+    path("otp/session/", views.GuardianSessionView.as_view()),
+    path("me/applications/", views.MyApplicationsView.as_view()),
     path("apply/", views.AdmissionApplicationCreateView.as_view()),
     path("lookup/", views.AdmissionLookupView.as_view()),
     path("staff/login/", staff_views.StaffLoginView.as_view()),

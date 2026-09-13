@@ -109,11 +109,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = "en"
+LANGUAGE_CODE = "bn"
 
 LANGUAGES = [
-    ("en", "English"),
     ("bn", "Bengali"),
+    ("en", "English"),
 ]
 
 TIME_ZONE = "Asia/Dhaka"
@@ -175,6 +175,9 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL",
     "IGQS Admissions <admissions@igqs.edu.bd>",
 )
+
+STAFF_NOTIFICATION_EMAIL = os.getenv("STAFF_NOTIFICATION_EMAIL", "").strip()
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "").strip()
 
 MAILERS = {
     "default": {

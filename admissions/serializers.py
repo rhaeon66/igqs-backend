@@ -2,13 +2,14 @@ from decimal import Decimal, InvalidOperation
 
 from rest_framework import serializers
 
+from .eligibility import expected_fee_amount, resolve_admission_grade
 from .models import AdmissionApplication, AdmissionFee, Gender, PaymentMethod, PaymentMethodCode
 
 
 def lang_of(request) -> str:
-    if request and request.query_params.get("lang") == "bn":
-        return "bn"
-    return "en"
+    if request and request.query_params.get("lang") == "en":
+        return "en"
+    return "bn"
 
 
 class AdmissionFeeSerializer(serializers.ModelSerializer):
@@ -151,3 +152,32 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Enter the payment date.")
         return value
+
+    def validate(self, attrs):
+        slug = (self.initial_data.get("applying_class_slug") or "").strip()
+        grade = resolve_admission_grade(slug=slug, name=attrs.get("applying_class") or "")
+        if not grade:
+            raise serializers.ValidationError(
+                {
+                    "applying_class": "Admission is only available for Play through Class 3."
+                }
+            )
+        expected = expected_fee_amount(grade)
+        if expected is None:
+            raise serializers.ValidationError(
+                {"payment_amount": "Admission fee is not configured."}
+            )
+        submitted = attrs.get("payment_amount")
+        if submitted is not None and Decimal(submitted) != expected:
+            raise serializers.ValidationError(
+                {
+                    "payment_amount": f"Payment amount must be {expected}."
+                }
+            )
+        attrs["payment_amount"] = expected
+        attrs["_grade"] = grade
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("_grade", None)
+        return super().create(validated_data)

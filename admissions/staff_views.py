@@ -1,6 +1,8 @@
 import csv
 from io import StringIO
 
+from datetime import datetime
+
 from django.contrib.auth import authenticate
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
@@ -17,6 +19,16 @@ from .models import AdmissionApplication, ApplicationStatus
 from .permissions import IsStaffUser
 from .receipts import issue_receipt, refresh_application_after_review
 from .views import application_payload, receipt_pdf_response
+
+
+def parse_query_date(value):
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def media_url(request, field):
@@ -102,6 +114,13 @@ def filtered_queryset(request):
         qs = qs.filter(status=status_filter)
     if applying_class:
         qs = qs.filter(applying_class=applying_class)
+
+    date_from = parse_query_date(request.query_params.get("date_from"))
+    date_to = parse_query_date(request.query_params.get("date_to"))
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
 
     sort = request.query_params.get("sort") or "-created_at"
     allowed = {

@@ -63,10 +63,10 @@ class StaffContentTests(APITestCase):
 
         public = self.client.get("/api/home/")
         self.assertEqual(public.status_code, 200)
-        self.assertEqual(public.data["home"]["hero_title"], "New hero title")
+        self.assertEqual(public.data["home"]["hero_title"], "নতুন শিরোনাম")
 
-        public_bn = self.client.get("/api/home/?lang=bn")
-        self.assertEqual(public_bn.data["home"]["hero_title"], "নতুন শিরোনাম")
+        public_en = self.client.get("/api/home/?lang=en")
+        self.assertEqual(public_en.data["home"]["hero_title"], "New hero title")
 
     def test_create_why_choose_news_event_and_fee(self):
         self.auth()

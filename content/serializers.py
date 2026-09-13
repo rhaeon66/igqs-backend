@@ -20,9 +20,9 @@ from .models import (
 
 def lang_of(context) -> str:
     request = context.get("request")
-    if request and request.query_params.get("lang") == "bn":
-        return "bn"
-    return "en"
+    if request and request.query_params.get("lang") == "en":
+        return "en"
+    return "bn"
 
 
 def loc(obj, field: str, lang: str) -> str:
