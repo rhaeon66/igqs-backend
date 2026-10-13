@@ -102,6 +102,7 @@ def seed_admission_catalog():
         description_en="Play",
         description_bn="প্লে",
         order=1,
+        open_for_admission=True,
     )
     CurriculumGrade.objects.create(
         slug="hifz",
@@ -153,6 +154,7 @@ def apply_payload(**overrides):
         "payment_amount": "12000",
         "payment_date": str(timezone.localdate()),
         "payer_mobile": "01911999888",
+        "payment_screenshot": image_upload("payment.png"),
     }
     payload.update(overrides)
     return payload
@@ -177,7 +179,6 @@ class AdmissionReceiptApiTests(APITestCase):
         return verified.data
 
     def test_apply_returns_receipt_and_download(self):
-        self.verify_phone()
         payload = apply_payload()
         response = self.client.post("/api/admissions/apply/", payload, format="multipart")
         self.assertEqual(response.status_code, 201, response.content)
@@ -195,7 +196,6 @@ class AdmissionReceiptApiTests(APITestCase):
         self.assertIn("IGQS-RC-00001.pdf", download["Content-Disposition"])
 
     def test_lookup_receipt_by_id(self):
-        self.verify_phone()
         payload = apply_payload(transaction_id="TXNLOOKUP001")
         created = self.client.post("/api/admissions/apply/", payload, format="multipart")
         self.assertEqual(created.status_code, 201, created.content)
@@ -232,6 +232,78 @@ class StaffAdmissionTests(APITestCase):
     def auth(self):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
+    def test_class_fees_can_be_set_per_class(self):
+        self.auth()
+        seed_admission_catalog()
+        nursery = CurriculumGrade.objects.create(
+            slug="nursery",
+            name_en="Nursery",
+            name_bn="নার্সারি",
+            description_en="Nursery",
+            description_bn="নার্সারি",
+            order=2,
+            open_for_admission=True,
+        )
+        listed = self.client.get("/api/admissions/staff/class-fees/")
+        self.assertEqual(listed.status_code, 200)
+        amounts = {row["slug"]: row["amount"] for row in listed.data["fees"]}
+        self.assertEqual(amounts[""], "15000")
+        self.assertEqual(amounts["playgroup"], "12000")
+        self.assertEqual(amounts["nursery"], "")
+        self.assertNotIn("hifz", amounts)
+
+        playgroup_id = next(row["grade_id"] for row in listed.data["fees"] if row["slug"] == "playgroup")
+        saved = self.client.put(
+            "/api/admissions/staff/class-fees/",
+            {
+                "fees": [
+                    {"grade_id": None, "amount": "16000"},
+                    {"grade_id": nursery.id, "amount": "13000"},
+                    {"grade_id": playgroup_id, "amount": ""},
+                ]
+            },
+            format="json",
+        )
+        self.assertEqual(saved.status_code, 200, saved.content)
+        updated = {row["slug"]: row["amount"] for row in saved.data["fees"]}
+        self.assertEqual(updated[""], "16000")
+        self.assertEqual(updated["nursery"], "13000")
+        self.assertEqual(updated["playgroup"], "")
+        self.assertFalse(
+            AdmissionFee.objects.filter(grade__slug="playgroup", is_active=True).exists()
+        )
+
+        invalid = self.client.put(
+            "/api/admissions/staff/class-fees/",
+            {"fees": [{"grade_id": nursery.id, "amount": "free"}]},
+            format="json",
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_added_class_appears_for_admission(self):
+        self.auth()
+        created = self.client.post(
+            "/api/admissions/staff/class-fees/",
+            {
+                "name_en": "Class 4",
+                "name_bn": "চতুর্থ শ্রেণি",
+                "amount": "20000",
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        public = self.client.get("/api/admissions/classes/?lang=en")
+        added = next(row for row in public.data if row["slug"] == "class-4")
+        self.assertEqual(added["name"], "Class 4")
+        curriculum = self.client.get("/api/curriculum/?lang=en")
+        self.assertNotIn("class-4", [row["slug"] for row in curriculum.data])
+
+        grade_id = next(row["grade_id"] for row in created.data["fees"] if row["slug"] == "class-4")
+        removed = self.client.delete(f"/api/admissions/staff/class-fees/?grade_id={grade_id}")
+        self.assertEqual(removed.status_code, 200, removed.content)
+        public = self.client.get("/api/admissions/classes/?lang=en")
+        self.assertNotIn("class-4", [row["slug"] for row in public.data])
+
     def test_login_and_stats(self):
         denied = self.client.get("/api/admissions/staff/stats/")
         self.assertEqual(denied.status_code, 401)
@@ -250,6 +322,12 @@ class StaffAdmissionTests(APITestCase):
         self.assertEqual(stats.data["total"], 1)
         self.assertEqual(stats.data["pending"], 1)
         self.assertEqual(stats.data["today"], 1)
+
+    @override_settings(ADMIN_LOGIN_DISABLED=True)
+    def test_staff_api_opens_without_login_when_disabled(self):
+        stats = self.client.get("/api/admissions/staff/stats/")
+        self.assertEqual(stats.status_code, 200)
+        self.assertEqual(stats.data["total"], 1)
 
     def test_search_filter_and_approve_reject(self):
         self.auth()
@@ -388,25 +466,30 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         self.assertEqual(expired.status_code, 400)
         self.assertEqual(expired.data["code"], "otp_expired")
 
-    def test_apply_requires_verified_phone_and_binds_it(self):
-        denied = self.client.post("/api/admissions/apply/", apply_payload(), format="multipart")
-        self.assertEqual(denied.status_code, 401)
-
-        session = self.verify_phone("01711000111")
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['token']}")
+    def test_apply_stores_submitted_mobile(self):
         created = self.client.post(
             "/api/admissions/apply/",
-            apply_payload(mobile="01900000000", payer_mobile="01900000000"),
+            apply_payload(mobile="01900000000", payer_mobile="01800000000"),
             format="multipart",
         )
         self.assertEqual(created.status_code, 201, created.content)
-        self.assertEqual(created.data["mobile"], "01711000111")
-        self.assertEqual(created.data["transaction"]["payer_mobile"], "01711000111")
+        self.assertEqual(created.data["mobile"], "01900000000")
+        self.assertEqual(created.data["transaction"]["payer_mobile"], "01900000000")
+
+        invalid = self.client.post(
+            "/api/admissions/apply/",
+            apply_payload(mobile="22", transaction_id="TXNBADPHONE"),
+            format="multipart",
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+        missing_shot = apply_payload(transaction_id="TXNNOSHOT")
+        missing_shot.pop("payment_screenshot")
+        no_shot = self.client.post("/api/admissions/apply/", missing_shot, format="multipart")
+        self.assertEqual(no_shot.status_code, 400)
+        self.assertIn("payment_screenshot", no_shot.data)
 
     def test_class_allowlist_and_amount_override(self):
-        session = self.verify_phone()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['token']}")
-
         blocked = self.client.post(
             "/api/admissions/apply/",
             apply_payload(applying_class="Hifz Programme", applying_class_slug="hifz"),
@@ -426,7 +509,11 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
     def test_my_payments_are_isolated(self):
         first = self.verify_phone("01711000111")
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first['token']}")
-        created = self.client.post("/api/admissions/apply/", apply_payload(), format="multipart")
+        created = self.client.post(
+            "/api/admissions/apply/",
+            apply_payload(mobile="01711000111", payer_mobile="01711000111"),
+            format="multipart",
+        )
         self.assertEqual(created.status_code, 201, created.content)
 
         mine = self.client.get("/api/admissions/me/applications/")
@@ -447,8 +534,6 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
 
     @override_settings(STAFF_NOTIFICATION_EMAIL="")
     def test_staff_notification_skipped_without_env(self):
-        session = self.verify_phone()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['token']}")
         created = self.client.post(
             "/api/admissions/apply/",
             apply_payload(transaction_id="TXNNOTIFYOFF"),
@@ -461,8 +546,6 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
 
     @override_settings(STAFF_NOTIFICATION_EMAIL="office@example.com")
     def test_staff_notification_sent_when_configured(self):
-        session = self.verify_phone()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['token']}")
         created = self.client.post(
             "/api/admissions/apply/",
             apply_payload(transaction_id="TXNNOTIFYON"),

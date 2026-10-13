@@ -57,6 +57,7 @@ class HomeContent(BilingualMixin, models.Model):
     hero_title_bn = models.CharField(max_length=250)
     hero_subtitle_en = models.TextField()
     hero_subtitle_bn = models.TextField()
+    hero_image = models.ImageField(upload_to="home/", blank=True)
     hero_image_url = models.URLField(blank=True)
     welcome_en = models.TextField()
     welcome_bn = models.TextField()
@@ -68,6 +69,7 @@ class HomeContent(BilingualMixin, models.Model):
     principal_title_bn = models.CharField(max_length=120)
     principal_message_en = models.TextField()
     principal_message_bn = models.TextField()
+    principal_photo = models.ImageField(upload_to="home/", blank=True)
     principal_photo_url = models.URLField(blank=True)
 
     class Meta:
@@ -76,6 +78,18 @@ class HomeContent(BilingualMixin, models.Model):
 
     def __str__(self) -> str:
         return "Homepage content"
+
+    @property
+    def hero_image_src(self) -> str:
+        if self.hero_image:
+            return self.hero_image.url
+        return self.hero_image_url
+
+    @property
+    def principal_photo_src(self) -> str:
+        if self.principal_photo:
+            return self.principal_photo.url
+        return self.principal_photo_url
 
 
 class WhyChooseItem(BilingualMixin, models.Model):
@@ -122,6 +136,7 @@ class Leader(BilingualMixin, models.Model):
     role_bn = models.CharField(max_length=150)
     bio_en = models.TextField(blank=True)
     bio_bn = models.TextField(blank=True)
+    photo = models.ImageField(upload_to="leaders/", blank=True)
     photo_url = models.URLField(blank=True)
     order = models.PositiveIntegerField(default=0)
 
@@ -131,12 +146,19 @@ class Leader(BilingualMixin, models.Model):
     def __str__(self) -> str:
         return self.name_en
 
+    @property
+    def photo_src(self) -> str:
+        if self.photo:
+            return self.photo.url
+        return self.photo_url
+
 
 class Facility(BilingualMixin, models.Model):
     title_en = models.CharField(max_length=150)
     title_bn = models.CharField(max_length=150)
     description_en = models.TextField()
     description_bn = models.TextField()
+    image = models.ImageField(upload_to="facilities/", blank=True)
     image_url = models.URLField(blank=True)
     order = models.PositiveIntegerField(default=0)
 
@@ -147,6 +169,12 @@ class Facility(BilingualMixin, models.Model):
     def __str__(self) -> str:
         return self.title_en
 
+    @property
+    def image_src(self) -> str:
+        if self.image:
+            return self.image.url
+        return self.image_url
+
 
 class CurriculumGrade(BilingualMixin, models.Model):
     slug = models.SlugField(unique=True)
@@ -155,6 +183,8 @@ class CurriculumGrade(BilingualMixin, models.Model):
     description_en = models.TextField()
     description_bn = models.TextField()
     order = models.PositiveIntegerField(default=0)
+    open_for_admission = models.BooleanField(default=False)
+    listed_on_curriculum = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["order"]
@@ -295,6 +325,7 @@ class GalleryAlbum(BilingualMixin, models.Model):
     category = models.CharField(max_length=20, choices=GalleryCategory.choices)
     description_en = models.TextField(blank=True)
     description_bn = models.TextField(blank=True)
+    cover_image = models.ImageField(upload_to="gallery/", blank=True)
     cover_image_url = models.URLField(blank=True)
     order = models.PositiveIntegerField(default=0)
 
@@ -303,6 +334,12 @@ class GalleryAlbum(BilingualMixin, models.Model):
 
     def __str__(self) -> str:
         return self.title_en
+
+    @property
+    def cover_image_src(self) -> str:
+        if self.cover_image:
+            return self.cover_image.url
+        return self.cover_image_url
 
 
 class GalleryImage(BilingualMixin, models.Model):

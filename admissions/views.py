@@ -4,9 +4,9 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .eligibility import ADMISSION_CLASS_SLUGS, admission_grades
+from .eligibility import admission_grades
 from .models import AdmissionApplication, AdmissionFee, PaymentMethod
-from .phone import PhoneError, get_guardian_session, send_otp, verify_otp
+from .phone import PhoneError, get_guardian_session, normalize_bd_phone, send_otp, verify_otp
 from .receipts import issue_receipt, notify_staff_new_application
 from .serializers import (
     AdmissionApplicationSerializer,
@@ -88,14 +88,12 @@ def application_payload(application, request):
 class ApplyingClassListView(APIView):
     def get(self, request):
         lang = "en" if request.query_params.get("lang") == "en" else "bn"
-        grades = admission_grades()
-        ordered = {slug: None for slug in ADMISSION_CLASS_SLUGS}
-        for grade in grades:
-            ordered[grade.slug] = {
-                "slug": grade.slug,
-                "name": grade.localized("name", lang),
-            }
-        return Response([item for item in ordered.values() if item])
+        return Response(
+            [
+                {"slug": grade.slug, "name": grade.localized("name", lang)}
+                for grade in admission_grades()
+            ]
+        )
 
 
 class AdmissionInfoView(APIView):
@@ -110,7 +108,7 @@ class AdmissionInfoView(APIView):
                 else None,
                 "fees": AdmissionFeeSerializer(fees, many=True, context=ctx).data,
                 "methods": PaymentMethodSerializer(
-                    PaymentMethod.objects.filter(is_active=True),
+                    PaymentMethod.objects.filter(is_active=True).prefetch_related("details"),
                     many=True,
                     context=ctx,
                 ).data,
@@ -158,15 +156,13 @@ class AdmissionApplicationCreateView(generics.CreateAPIView):
     serializer_class = AdmissionApplicationSerializer
 
     def create(self, request, *args, **kwargs):
-        session = get_guardian_session(request)
-        if not session:
-            return Response(
-                {"detail": "Verify your mobile number before submitting payment."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
         data = request.data.copy()
-        data["mobile"] = session.phone
-        data["payer_mobile"] = session.phone
+        try:
+            mobile = normalize_bd_phone(data.get("mobile") or "")
+        except PhoneError as exc:
+            return phone_error_response(exc)
+        data["mobile"] = mobile
+        data["payer_mobile"] = mobile
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         application = serializer.save()

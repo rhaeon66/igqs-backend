@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from rest_framework import serializers
 
 from .eligibility import expected_fee_amount, resolve_admission_grade
-from .models import AdmissionApplication, AdmissionFee, Gender, PaymentMethod, PaymentMethodCode
+from .models import AdmissionApplication, AdmissionFee, Gender, PaymentMethod
 
 
 def lang_of(request) -> str:
@@ -48,29 +48,26 @@ class AdmissionFeeSerializer(serializers.ModelSerializer):
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
-    payment_type = serializers.SerializerMethodField()
-    instructions = serializers.SerializerMethodField()
+    details = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentMethod
-        fields = [
-            "code",
-            "name",
-            "account_number",
-            "account_name",
-            "bank_name",
-            "payment_type",
-            "instructions",
-        ]
+        fields = ["code", "name", "details"]
 
     def get_name(self, obj):
         return obj.localized("name", lang_of(self.context.get("request")))
 
-    def get_payment_type(self, obj):
-        return obj.localized("payment_type", lang_of(self.context.get("request")))
-
-    def get_instructions(self, obj):
-        return obj.localized("instructions", lang_of(self.context.get("request")))
+    def get_details(self, obj):
+        lang = lang_of(self.context.get("request"))
+        rows = []
+        for detail in obj.details.all():
+            label = detail.label_bn if lang == "bn" else detail.label_en
+            value = detail.value_bn if lang == "bn" else detail.value_en
+            label = label or (detail.label_en if lang == "bn" else detail.label_bn)
+            value = value or (detail.value_en if lang == "bn" else detail.value_bn)
+            if label or value:
+                rows.append({"label": label, "value": value})
+        return rows
 
 
 class AdmissionApplicationSerializer(serializers.ModelSerializer):
@@ -116,10 +113,13 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_payment_method(self, value):
-        if value not in PaymentMethodCode.values:
-            raise serializers.ValidationError("Invalid payment method.")
         if not PaymentMethod.objects.filter(code=value, is_active=True).exists():
             raise serializers.ValidationError("This payment method is not available.")
+        return value
+
+    def validate_payment_screenshot(self, value):
+        if not value:
+            raise serializers.ValidationError("Upload a payment screenshot.")
         return value
 
     def validate_transaction_id(self, value):
@@ -154,12 +154,16 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        if not attrs.get("payment_screenshot"):
+            raise serializers.ValidationError(
+                {"payment_screenshot": "Upload a payment screenshot."}
+            )
         slug = (self.initial_data.get("applying_class_slug") or "").strip()
         grade = resolve_admission_grade(slug=slug, name=attrs.get("applying_class") or "")
         if not grade:
             raise serializers.ValidationError(
                 {
-                    "applying_class": "Admission is only available for Play through Class 3."
+                    "applying_class": "Choose a class that is open for admission."
                 }
             )
         expected = expected_fee_amount(grade)

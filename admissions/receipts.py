@@ -184,7 +184,7 @@ def build_receipt_pdf(application) -> bytes:
         ("Mobile", application.mobile),
         ("Email", application.email),
         ("Admission fee", f"BDT {int(application.payment_amount):,}"),
-        ("Payment method", application.get_payment_method_display()),
+        ("Payment method", application.payment_method_label()),
         ("Transaction ID", application.transaction_id),
         ("Submission date", submitted.strftime("%d %B %Y, %I:%M %p")),
         ("Application status", application.get_status_display()),
@@ -293,7 +293,7 @@ def send_receipt_email(application) -> bool:
         f"Email: {application.email}\n\n"
         f"Payment information\n"
         f"Admission fee: BDT {int(application.payment_amount):,}\n"
-        f"Payment method: {application.get_payment_method_display()}\n"
+        f"Payment method: {application.payment_method_label()}\n"
         f"Transaction ID: {application.transaction_id}\n"
         f"Payment date: {application.payment_date}\n\n"
         f"The official PDF receipt is attached. Please keep it for future reference.\n\n"
@@ -380,7 +380,7 @@ def notify_staff_new_application(application) -> bool:
         f"Guardian: {application.guardian_name}\n"
         f"Phone: {application.mobile}\n"
         f"Email: {application.email}\n\n"
-        f"Payment method: {application.get_payment_method_display()}\n"
+        f"Payment method: {application.payment_method_label()}\n"
         f"Amount: BDT {int(application.payment_amount):,}\n"
         f"Transaction ID: {application.transaction_id}\n"
         f"Payment date: {application.payment_date}\n\n"

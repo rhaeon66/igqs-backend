@@ -1,21 +1,25 @@
 import csv
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from io import StringIO
 
-from datetime import datetime
-
 from django.contrib.auth import authenticate
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Max, Q, Sum
+from django.utils.text import slugify
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AdmissionApplication, ApplicationStatus
+from .authentication import LocalStaffAuthentication
+from content.models import CurriculumGrade
+
+from .eligibility import admission_grades
+from .models import AdmissionApplication, AdmissionFee, ApplicationStatus
 from .permissions import IsStaffUser
 from .receipts import issue_receipt, refresh_application_after_review
 from .views import application_payload, receipt_pdf_response
@@ -51,7 +55,7 @@ def staff_list_item(application, request=None):
         "status": application.status,
         "status_label": application.get_status_display(),
         "payment_method": application.payment_method,
-        "payment_method_label": application.get_payment_method_display(),
+        "payment_method_label": application.payment_method_label(),
         "transaction_id": application.transaction_id,
         "payment_amount": str(application.payment_amount),
         "created_at": application.created_at,
@@ -88,7 +92,7 @@ def staff_detail_payload(application, request):
     )
     payload["transaction"] = {
         **payload.get("transaction", {}),
-        "payment_method_label": application.get_payment_method_display(),
+        "payment_method_label": application.payment_method_label(),
     }
     return payload
 
@@ -141,7 +145,7 @@ def filtered_queryset(request):
 
 
 class StaffAuthMixin:
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [LocalStaffAuthentication]
     permission_classes = [IsStaffUser]
 
 
@@ -313,7 +317,7 @@ class StaffApplicationExportView(StaffAuthMixin, APIView):
                     application.applying_class,
                     application.mobile,
                     application.email,
-                    application.get_payment_method_display(),
+                    application.payment_method_label(),
                     application.transaction_id,
                     application.payment_amount,
                     application.payment_date,
@@ -324,6 +328,204 @@ class StaffApplicationExportView(StaffAuthMixin, APIView):
         response = HttpResponse(buffer.getvalue(), content_type="text/csv")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+def _amount_text(fee):
+    if fee is None:
+        return ""
+    amount = fee.amount
+    if amount == amount.to_integral():
+        return str(int(amount))
+    return format(amount, "f")
+
+
+def _unique_grade_slug(name: str) -> str:
+    base = (slugify(name)[:40] or "class")
+    slug = base
+    number = 2
+    while CurriculumGrade.objects.filter(slug=slug).exists():
+        suffix = f"-{number}"
+        slug = f"{base[: 50 - len(suffix)]}{suffix}"
+        number += 1
+    return slug
+
+
+def _class_fee_rows():
+    grades = list(admission_grades())
+    active = AdmissionFee.objects.filter(is_active=True).select_related("grade")
+    by_grade = {}
+    default_fee = None
+    for fee in active:
+        if fee.grade_id is None:
+            default_fee = default_fee or fee
+        else:
+            by_grade.setdefault(fee.grade_id, fee)
+    rows = [
+        {
+            "grade_id": None,
+            "slug": "",
+            "name_en": "",
+            "name_bn": "",
+            "amount": _amount_text(default_fee),
+        }
+    ]
+    for grade in grades:
+        fee = by_grade.get(grade.id)
+        rows.append(
+            {
+                "grade_id": grade.id,
+                "slug": grade.slug,
+                "name_en": grade.name_en,
+                "name_bn": grade.name_bn,
+                "amount": _amount_text(fee),
+            }
+        )
+    return rows
+
+
+def _parse_fee_amount(raw):
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        amount = Decimal(str(raw).strip())
+    except InvalidOperation as exc:
+        raise ValueError from exc
+    if amount < 0 or amount > Decimal("99999999.99"):
+        raise ValueError
+    return amount.quantize(Decimal("0.01"))
+
+
+def _set_class_fee(grade, amount):
+    existing = AdmissionFee.objects.filter(grade=grade).order_by("-is_active", "id")
+    if amount is None:
+        existing.filter(is_active=True).update(is_active=False)
+        return
+    fee = existing.first()
+    if fee is None:
+        fee = AdmissionFee.objects.create(
+            grade=grade,
+            amount=amount,
+            currency="BDT",
+            is_active=True,
+        )
+    else:
+        fee.amount = amount
+        fee.is_active = True
+        fee.save(update_fields=["amount", "is_active"])
+    existing.exclude(pk=fee.pk).filter(is_active=True).update(is_active=False)
+
+
+class StaffClassFeeView(StaffAuthMixin, APIView):
+    def get(self, request):
+        return Response({"fees": _class_fee_rows()})
+
+    def put(self, request):
+        rows = request.data.get("fees")
+        if not isinstance(rows, list):
+            return Response(
+                {"detail": "Send a fee for each class."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        grades = {grade.id: grade for grade in admission_grades()}
+        updates = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                return Response(
+                    {"detail": "Each fee needs a class and an amount."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            grade_id = row.get("grade_id")
+            if grade_id in ("", None):
+                key = None
+                grade = None
+            else:
+                try:
+                    grade_id = int(grade_id)
+                except (TypeError, ValueError):
+                    return Response(
+                        {"detail": "Unknown class."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                grade = grades.get(grade_id)
+                if grade is None:
+                    return Response(
+                        {"detail": "Unknown class."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                key = grade_id
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                amount = _parse_fee_amount(row.get("amount"))
+            except ValueError:
+                return Response(
+                    {"detail": "Enter a valid fee amount."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            updates.append((grade, amount))
+
+        for grade, amount in updates:
+            _set_class_fee(grade, amount)
+        return Response({"fees": _class_fee_rows()})
+
+    def post(self, request):
+        name_en = (request.data.get("name_en") or "").strip()
+        name_bn = (request.data.get("name_bn") or "").strip()
+        if not name_en or not name_bn:
+            return Response(
+                {"detail": "Enter the class name in English and Bengali."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            amount = _parse_fee_amount(request.data.get("amount"))
+        except ValueError:
+            return Response(
+                {"detail": "Enter a valid fee amount."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if amount is None:
+            return Response(
+                {"detail": "Enter a fee amount."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        order = (CurriculumGrade.objects.aggregate(max_order=Max("order"))["max_order"] or 0) + 1
+        grade = CurriculumGrade.objects.create(
+            slug=_unique_grade_slug(name_en),
+            name_en=name_en,
+            name_bn=name_bn,
+            description_en=name_en,
+            description_bn=name_bn,
+            order=order,
+            open_for_admission=True,
+            listed_on_curriculum=False,
+        )
+        _set_class_fee(grade, amount)
+        return Response({"fees": _class_fee_rows()}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        raw_id = request.query_params.get("grade_id") or request.data.get("grade_id")
+        try:
+            grade_id = int(raw_id)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Choose a class to remove."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        grade = CurriculumGrade.objects.filter(pk=grade_id, open_for_admission=True).first()
+        if grade is None:
+            return Response(
+                {"detail": "Class not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        _set_class_fee(grade, None)
+        if grade.listed_on_curriculum:
+            grade.open_for_admission = False
+            grade.save(update_fields=["open_for_admission"])
+        else:
+            grade.delete()
+        return Response({"fees": _class_fee_rows()})
 
 
 class StaffReceiptDownloadView(StaffAuthMixin, APIView):

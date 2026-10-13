@@ -1,8 +1,11 @@
-from rest_framework import viewsets
-from rest_framework.authentication import TokenAuthentication
+from django.db.models import Max
+from PIL import Image, UnidentifiedImageError
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from admissions.authentication import LocalStaffAuthentication
 from admissions.models import AdmissionFee, PaymentMethod
 from admissions.permissions import IsStaffUser
 
@@ -41,7 +44,7 @@ from .staff_serializers import (
 
 
 class StaffAuthMixin:
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [LocalStaffAuthentication]
     permission_classes = [IsStaffUser]
 
 
@@ -106,7 +109,9 @@ class FacilityViewSet(StaffModelViewSet):
 
 
 class CurriculumGradeViewSet(StaffModelViewSet):
-    queryset = CurriculumGrade.objects.prefetch_related("subjects", "documents")
+    queryset = CurriculumGrade.objects.filter(listed_on_curriculum=True).prefetch_related(
+        "subjects", "documents"
+    )
     serializer_class = StaffCurriculumGradeSerializer
 
 
@@ -159,6 +164,62 @@ class GalleryImageViewSet(StaffModelViewSet):
         if album:
             qs = qs.filter(album_id=album)
         return qs
+
+    @action(detail=False, methods=["post"], url_path="bulk")
+    def bulk(self, request):
+        album_id = request.data.get("album")
+        uploads = request.FILES.getlist("images")
+        if not album_id:
+            return Response(
+                {"detail": "Choose an album first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not uploads:
+            return Response(
+                {"detail": "Choose at least one image."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(uploads) > 30:
+            return Response(
+                {"detail": "Upload at most 30 images at a time."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            album = GalleryAlbum.objects.get(pk=album_id)
+        except (GalleryAlbum.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": "Album not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        for upload in uploads:
+            content_type = str(getattr(upload, "content_type", ""))
+            if content_type and not content_type.startswith("image/"):
+                return Response(
+                    {"detail": f"{upload.name} is not an image."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                Image.open(upload).verify()
+            except (UnidentifiedImageError, OSError, ValueError):
+                return Response(
+                    {"detail": f"{upload.name} is not a valid image."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            upload.seek(0)
+
+        start = (
+            GalleryImage.objects.filter(album=album).aggregate(max_order=Max("order"))[
+                "max_order"
+            ]
+            or 0
+        )
+        created = [
+            GalleryImage.objects.create(album=album, image=upload, order=start + offset)
+            for offset, upload in enumerate(uploads, start=1)
+        ]
+        serializer = self.get_serializer(created, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class AdmissionFeeViewSet(StaffModelViewSet):

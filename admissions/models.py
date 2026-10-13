@@ -47,16 +47,16 @@ class AdmissionFee(models.Model):
 
 
 class PaymentMethod(models.Model):
-    code = models.CharField(max_length=20, choices=PaymentMethodCode.choices, unique=True)
+    code = models.SlugField(max_length=20, unique=True)
     name_en = models.CharField(max_length=80)
     name_bn = models.CharField(max_length=80)
-    account_number = models.CharField(max_length=80)
+    account_number = models.CharField(max_length=80, blank=True, default="")
     account_name = models.CharField(max_length=120, blank=True)
     bank_name = models.CharField(max_length=120, blank=True)
-    payment_type_en = models.CharField(max_length=80)
-    payment_type_bn = models.CharField(max_length=80)
-    instructions_en = models.TextField()
-    instructions_bn = models.TextField()
+    payment_type_en = models.CharField(max_length=80, blank=True, default="")
+    payment_type_bn = models.CharField(max_length=80, blank=True, default="")
+    instructions_en = models.TextField(blank=True, default="")
+    instructions_bn = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
 
@@ -73,6 +73,23 @@ class PaymentMethod(models.Model):
             return value
         fallback = "en" if lang == "bn" else "bn"
         return getattr(self, f"{field}_{fallback}", "") or ""
+
+
+class PaymentDetail(models.Model):
+    method = models.ForeignKey(
+        PaymentMethod, on_delete=models.CASCADE, related_name="details"
+    )
+    label_en = models.CharField(max_length=120, blank=True)
+    label_bn = models.CharField(max_length=120, blank=True)
+    value_en = models.TextField(blank=True)
+    value_bn = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return self.label_en or self.label_bn or f"Detail {self.pk}"
 
 
 class AdmissionApplication(models.Model):
@@ -102,9 +119,7 @@ class AdmissionApplication(models.Model):
         choices=ApplicationStatus.choices,
         default=ApplicationStatus.PENDING,
     )
-    payment_method = models.CharField(
-        max_length=20, choices=PaymentMethodCode.choices, default=PaymentMethodCode.BKASH
-    )
+    payment_method = models.CharField(max_length=20, default="")
     transaction_id = models.CharField(max_length=80, default="")
     payment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     payment_date = models.DateField(default=timezone.localdate)
@@ -138,6 +153,12 @@ class AdmissionApplication(models.Model):
 
     def __str__(self) -> str:
         return f"{self.application_id} — {self.student_name}"
+
+    def payment_method_label(self) -> str:
+        method = PaymentMethod.objects.filter(code=self.payment_method).first()
+        if method:
+            return method.name_en
+        return self.payment_method
 
     def transaction_data(self) -> dict:
         screenshot = self.payment_screenshot.url if self.payment_screenshot else ""

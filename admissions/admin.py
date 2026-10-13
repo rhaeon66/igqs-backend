@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AdmissionApplication, AdmissionFee, GuardianSession, PaymentMethod, PhoneOtp
+from .models import AdmissionApplication, AdmissionFee, GuardianSession, PaymentDetail, PaymentMethod, PhoneOtp
 
 
 @admin.register(PhoneOtp)
@@ -22,9 +22,15 @@ class AdmissionFeeAdmin(admin.ModelAdmin):
     list_display = ("grade", "amount", "currency", "is_active")
 
 
+class PaymentDetailInline(admin.TabularInline):
+    model = PaymentDetail
+    extra = 1
+
+
 @admin.register(PaymentMethod)
 class PaymentMethodAdmin(admin.ModelAdmin):
-    list_display = ("name_en", "code", "account_number", "payment_type_en", "is_active", "order")
+    list_display = ("name_en", "code", "is_active", "order")
+    inlines = [PaymentDetailInline]
 
 
 @admin.register(AdmissionApplication)

@@ -33,6 +33,7 @@ urlpatterns = [
         staff_views.StaffApplicationDetailView.as_view(),
     ),
     path("staff/applications/", staff_views.StaffApplicationListView.as_view()),
+    path("staff/class-fees/", staff_views.StaffClassFeeView.as_view()),
     path(
         "receipts/<str:receipt_id>/pdf/",
         views.AdmissionReceiptPdfByIdView.as_view(),

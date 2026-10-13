@@ -1,7 +1,7 @@
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from admissions.models import AdmissionFee, PaymentMethod
+from admissions.models import AdmissionFee, PaymentDetail, PaymentMethod
 
 from .models import (
     AboutPage,
@@ -43,8 +43,32 @@ class SlugFromTitleMixin:
         return attrs
 
 
-class StaffSiteSettingsSerializer(serializers.ModelSerializer):
+class ClearUploadedImagesMixin:
+    uploaded_image_fields: tuple[str, ...] = ()
+
+    def _clear_uploaded_images(self, instance, validated_data):
+        for name in self.uploaded_image_fields:
+            if not validated_data.pop(f"clear_{name}", False):
+                continue
+            current = getattr(instance, name)
+            if current:
+                current.delete(save=False)
+            setattr(instance, name, None)
+
+    def update(self, instance, validated_data):
+        self._clear_uploaded_images(instance, validated_data)
+        return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        for name in self.uploaded_image_fields:
+            validated_data.pop(f"clear_{name}", None)
+        return super().create(validated_data)
+
+
+class StaffSiteSettingsSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("logo",)
     logo_src = serializers.SerializerMethodField()
+    clear_logo = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = SiteSettings
@@ -54,6 +78,8 @@ class StaffSiteSettingsSerializer(serializers.ModelSerializer):
             "school_name_bn",
             "tagline_en",
             "tagline_bn",
+            "logo",
+            "clear_logo",
             "logo_url",
             "logo_src",
             "address_en",
@@ -77,7 +103,11 @@ class StaffSiteSettingsSerializer(serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.logo_src)
 
 
-class StaffHomeContentSerializer(serializers.ModelSerializer):
+class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("hero_image", "principal_photo")
+    clear_hero_image = serializers.BooleanField(required=False, write_only=True)
+    clear_principal_photo = serializers.BooleanField(required=False, write_only=True)
+
     class Meta:
         model = HomeContent
         fields = [
@@ -86,6 +116,8 @@ class StaffHomeContentSerializer(serializers.ModelSerializer):
             "hero_title_bn",
             "hero_subtitle_en",
             "hero_subtitle_bn",
+            "hero_image",
+            "clear_hero_image",
             "hero_image_url",
             "welcome_en",
             "welcome_bn",
@@ -97,6 +129,8 @@ class StaffHomeContentSerializer(serializers.ModelSerializer):
             "principal_title_bn",
             "principal_message_en",
             "principal_message_bn",
+            "principal_photo",
+            "clear_principal_photo",
             "principal_photo_url",
         ]
 
@@ -135,7 +169,10 @@ class StaffAboutPageSerializer(serializers.ModelSerializer):
         ]
 
 
-class StaffLeaderSerializer(serializers.ModelSerializer):
+class StaffLeaderSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("photo",)
+    clear_photo = serializers.BooleanField(required=False, write_only=True)
+
     class Meta:
         model = Leader
         fields = [
@@ -146,12 +183,17 @@ class StaffLeaderSerializer(serializers.ModelSerializer):
             "role_bn",
             "bio_en",
             "bio_bn",
+            "photo",
+            "clear_photo",
             "photo_url",
             "order",
         ]
 
 
-class StaffFacilitySerializer(serializers.ModelSerializer):
+class StaffFacilitySerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("image",)
+    clear_image = serializers.BooleanField(required=False, write_only=True)
+
     class Meta:
         model = Facility
         fields = [
@@ -160,6 +202,8 @@ class StaffFacilitySerializer(serializers.ModelSerializer):
             "title_bn",
             "description_en",
             "description_bn",
+            "image",
+            "clear_image",
             "image_url",
             "order",
         ]
@@ -225,8 +269,10 @@ class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerial
         return attrs
 
 
-class StaffEventSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
+class StaffEventSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("image",)
     image_src = serializers.SerializerMethodField()
+    clear_image = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = Event
@@ -241,6 +287,8 @@ class StaffEventSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
             "location_bn",
             "description_en",
             "description_bn",
+            "image",
+            "clear_image",
             "image_url",
             "image_src",
             "is_published",
@@ -251,8 +299,10 @@ class StaffEventSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.image_src)
 
 
-class StaffNewsSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
+class StaffNewsSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("featured_image",)
     image_src = serializers.SerializerMethodField()
+    clear_featured_image = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = NewsPost
@@ -264,6 +314,8 @@ class StaffNewsSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
             "category",
             "description_en",
             "description_bn",
+            "featured_image",
+            "clear_featured_image",
             "featured_image_url",
             "image_src",
             "published_at",
@@ -276,14 +328,18 @@ class StaffNewsSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.image_src)
 
 
-class StaffGalleryImageSerializer(serializers.ModelSerializer):
+class StaffGalleryImageSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("image",)
     image_src = serializers.SerializerMethodField()
+    clear_image = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = GalleryImage
         fields = [
             "id",
             "album",
+            "image",
+            "clear_image",
             "image_url",
             "image_src",
             "caption_en",
@@ -295,8 +351,10 @@ class StaffGalleryImageSerializer(serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.image_src)
 
 
-class StaffGalleryAlbumSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
+class StaffGalleryAlbumSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("cover_image",)
     images = StaffGalleryImageSerializer(many=True, read_only=True)
+    clear_cover_image = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = GalleryAlbum
@@ -308,6 +366,8 @@ class StaffGalleryAlbumSerializer(SlugFromTitleMixin, serializers.ModelSerialize
             "category",
             "description_en",
             "description_bn",
+            "cover_image",
+            "clear_cover_image",
             "cover_image_url",
             "order",
             "images",
@@ -335,7 +395,23 @@ class StaffAdmissionFeeSerializer(serializers.ModelSerializer):
         return obj.grade.name_en if obj.grade else ""
 
 
+class StaffPaymentDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentDetail
+        fields = ["id", "label_en", "label_bn", "value_en", "value_bn", "order"]
+        extra_kwargs = {
+            "id": {"read_only": True},
+            "label_en": {"required": False, "allow_blank": True},
+            "label_bn": {"required": False, "allow_blank": True},
+            "value_en": {"required": False, "allow_blank": True},
+            "value_bn": {"required": False, "allow_blank": True},
+            "order": {"required": False},
+        }
+
+
 class StaffPaymentMethodSerializer(serializers.ModelSerializer):
+    details = StaffPaymentDetailSerializer(many=True, required=False)
+
     class Meta:
         model = PaymentMethod
         fields = [
@@ -343,13 +419,53 @@ class StaffPaymentMethodSerializer(serializers.ModelSerializer):
             "code",
             "name_en",
             "name_bn",
-            "account_number",
-            "account_name",
-            "bank_name",
-            "payment_type_en",
-            "payment_type_bn",
-            "instructions_en",
-            "instructions_bn",
             "is_active",
             "order",
+            "details",
         ]
+        extra_kwargs = {"code": {"required": False, "allow_blank": True}}
+
+    def _code_for(self, name):
+        base = (slugify(name)[:20] or "method")
+        code = base
+        number = 2
+        while PaymentMethod.objects.filter(code=code).exists():
+            suffix = f"-{number}"
+            code = f"{base[: 20 - len(suffix)]}{suffix}"
+            number += 1
+        return code
+
+    def _save_details(self, method, details):
+        method.details.all().delete()
+        PaymentDetail.objects.bulk_create(
+            [
+                PaymentDetail(
+                    method=method,
+                    label_en=(row.get("label_en") or "").strip(),
+                    label_bn=(row.get("label_bn") or "").strip(),
+                    value_en=(row.get("value_en") or "").strip(),
+                    value_bn=(row.get("value_bn") or "").strip(),
+                    order=index,
+                )
+                for index, row in enumerate(details)
+                if any(
+                    (row.get(key) or "").strip()
+                    for key in ("label_en", "label_bn", "value_en", "value_bn")
+                )
+            ]
+        )
+
+    def create(self, validated_data):
+        details = validated_data.pop("details", [])
+        if not validated_data.get("code"):
+            validated_data["code"] = self._code_for(validated_data.get("name_en") or "method")
+        method = PaymentMethod.objects.create(**validated_data)
+        self._save_details(method, details)
+        return method
+
+    def update(self, instance, validated_data):
+        details = validated_data.pop("details", None)
+        method = super().update(instance, validated_data)
+        if details is not None:
+            self._save_details(method, details)
+        return method

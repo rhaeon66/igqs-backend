@@ -23,7 +23,7 @@ from content.models import (
     NewsCategory,
     GalleryCategory,
 )
-from admissions.models import AdmissionFee, PaymentMethod
+from admissions.models import AdmissionFee, PaymentDetail, PaymentMethod
 
 IMG = {
     "hero": "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=1600&q=80",
@@ -313,9 +313,16 @@ class Command(BaseCommand):
                 "description_bn": "পুনরাবৃত্তি হালকা ও একাডেমিক সহায়তাসহ নিবেদিত হিফজ ধারা।",
             },
         ]
+        admission_slugs = {"playgroup", "nursery", "kg", "class-1", "class-2", "class-3"}
         created = []
         for i, g in enumerate(grades, start=1):
-            created.append(CurriculumGrade.objects.create(order=i, **g))
+            created.append(
+                CurriculumGrade.objects.create(
+                    order=i,
+                    open_for_admission=g["slug"] in admission_slugs,
+                    **g,
+                )
+            )
 
         subjects_by_grade = {
             "playgroup": [
@@ -442,6 +449,31 @@ class Command(BaseCommand):
                 ),
             ]
         )
+        for method in PaymentMethod.objects.all():
+            rows = []
+            if method.account_number:
+                rows.append(("Number", "নম্বর", method.account_number, method.account_number))
+            if method.account_name:
+                rows.append(("Account name", "অ্যাকাউন্টের নাম", method.account_name, method.account_name))
+            if method.bank_name:
+                rows.append(("Branch", "শাখা", method.bank_name, method.bank_name))
+            if method.payment_type_en or method.payment_type_bn:
+                rows.append(("Payment", "পেমেন্ট", method.payment_type_en, method.payment_type_bn))
+            if method.instructions_en or method.instructions_bn:
+                rows.append(("Note", "নোট", method.instructions_en, method.instructions_bn))
+            PaymentDetail.objects.bulk_create(
+                [
+                    PaymentDetail(
+                        method=method,
+                        label_en=label_en,
+                        label_bn=label_bn,
+                        value_en=value_en,
+                        value_bn=value_bn,
+                        order=index,
+                    )
+                    for index, (label_en, label_bn, value_en, value_bn) in enumerate(rows)
+                ]
+            )
 
     def _events(self):
         Event.objects.all().delete()

@@ -73,7 +73,9 @@ class HomeView(APIView):
                     gallery, many=True, context=ctx(request)
                 ).data,
                 "curriculum_highlights": CurriculumGradeSerializer(
-                    CurriculumGrade.objects.all()[:4], many=True, context=ctx(request)
+                    CurriculumGrade.objects.filter(listed_on_curriculum=True)[:4],
+                    many=True,
+                    context=ctx(request),
                 ).data,
             }
         )
@@ -99,7 +101,9 @@ class AboutView(APIView):
 
 class CurriculumView(APIView):
     def get(self, request):
-        grades = CurriculumGrade.objects.prefetch_related("subjects", "documents")
+        grades = CurriculumGrade.objects.filter(listed_on_curriculum=True).prefetch_related(
+            "subjects", "documents"
+        )
         return Response(
             CurriculumGradeSerializer(grades, many=True, context=ctx(request)).data
         )

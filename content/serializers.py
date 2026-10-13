@@ -89,11 +89,13 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
 class HomeContentSerializer(serializers.ModelSerializer):
     hero_title = serializers.SerializerMethodField()
     hero_subtitle = serializers.SerializerMethodField()
+    hero_image_url = serializers.SerializerMethodField()
     welcome = serializers.SerializerMethodField()
     about_preview = serializers.SerializerMethodField()
     principal_name = serializers.SerializerMethodField()
     principal_title = serializers.SerializerMethodField()
     principal_message = serializers.SerializerMethodField()
+    principal_photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = HomeContent
@@ -115,6 +117,9 @@ class HomeContentSerializer(serializers.ModelSerializer):
     def get_hero_subtitle(self, obj):
         return loc(obj, "hero_subtitle", lang_of(self.context))
 
+    def get_hero_image_url(self, obj):
+        return abs_url(self.context.get("request"), obj.hero_image_src)
+
     def get_welcome(self, obj):
         return loc(obj, "welcome", lang_of(self.context))
 
@@ -129,6 +134,9 @@ class HomeContentSerializer(serializers.ModelSerializer):
 
     def get_principal_message(self, obj):
         return loc(obj, "principal_message", lang_of(self.context))
+
+    def get_principal_photo_url(self, obj):
+        return abs_url(self.context.get("request"), obj.principal_photo_src)
 
 
 class WhyChooseSerializer(serializers.ModelSerializer):
@@ -188,6 +196,7 @@ class LeaderSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     bio = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Leader
@@ -202,10 +211,14 @@ class LeaderSerializer(serializers.ModelSerializer):
     def get_bio(self, obj):
         return loc(obj, "bio", lang_of(self.context))
 
+    def get_photo_url(self, obj):
+        return abs_url(self.context.get("request"), obj.photo_src)
+
 
 class FacilitySerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Facility
@@ -216,6 +229,9 @@ class FacilitySerializer(serializers.ModelSerializer):
 
     def get_description(self, obj):
         return loc(obj, "description", lang_of(self.context))
+
+    def get_image_url(self, obj):
+        return abs_url(self.context.get("request"), obj.image_src)
 
 
 class SubjectSerializer(serializers.ModelSerializer):
@@ -337,6 +353,7 @@ class GalleryImageSerializer(serializers.ModelSerializer):
 class GalleryAlbumSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
     images = GalleryImageSerializer(many=True, read_only=True)
 
     class Meta:
@@ -348,6 +365,9 @@ class GalleryAlbumSerializer(serializers.ModelSerializer):
 
     def get_description(self, obj):
         return loc(obj, "description", lang_of(self.context))
+
+    def get_cover_image_url(self, obj):
+        return abs_url(self.context.get("request"), obj.cover_image_src)
 
 
 class ContactMessageSerializer(serializers.ModelSerializer):

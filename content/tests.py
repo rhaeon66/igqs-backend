@@ -1,13 +1,16 @@
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command, get_commands
 from django.test import TestCase
+from PIL import Image
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from admissions.models import AdmissionFee
-from content.models import Event, HomeContent, NewsPost, SiteSettings, WhyChooseItem
+from content.models import Event, GalleryAlbum, GalleryImage, HomeContent, NewsPost, SiteSettings, WhyChooseItem
 
 
 class StaffContentTests(APITestCase):
@@ -67,6 +70,33 @@ class StaffContentTests(APITestCase):
 
         public_en = self.client.get("/api/home/?lang=en")
         self.assertEqual(public_en.data["home"]["hero_title"], "New hero title")
+
+    def test_home_keeps_image_url_and_upload(self):
+        self.auth()
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), "red").save(buffer, format="PNG")
+        upload = SimpleUploadedFile("hero.png", buffer.getvalue(), content_type="image/png")
+        updated = self.client.patch(
+            "/api/staff/home/",
+            {"hero_image": upload, "hero_image_url": "https://example.com/hero.jpg"},
+            format="multipart",
+        )
+        self.assertEqual(updated.status_code, 200, updated.content)
+        self.assertIn("/media/", updated.data["hero_image"])
+        self.assertEqual(updated.data["hero_image_url"], "https://example.com/hero.jpg")
+
+        public = self.client.get("/api/home/?lang=en")
+        self.assertIn("/media/", public.data["home"]["hero_image_url"])
+
+        cleared = self.client.patch(
+            "/api/staff/home/",
+            {"clear_hero_image": True},
+            format="json",
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.content)
+        self.assertIsNone(cleared.data["hero_image"])
+        public = self.client.get("/api/home/?lang=en")
+        self.assertEqual(public.data["home"]["hero_image_url"], "https://example.com/hero.jpg")
 
     def test_create_why_choose_news_event_and_fee(self):
         self.auth()
@@ -141,6 +171,79 @@ class StaffContentTests(APITestCase):
         deleted = self.client.delete(f"/api/staff/news/{news.data['id']}/")
         self.assertEqual(deleted.status_code, 204)
         self.assertEqual(NewsPost.objects.count(), 0)
+
+    def test_payment_method_details_are_custom(self):
+        self.auth()
+        created = self.client.post(
+            "/api/staff/methods/",
+            {
+                "name_en": "Upay",
+                "name_bn": "উপায়",
+                "is_active": True,
+                "order": 1,
+                "details": [
+                    {
+                        "label_en": "Number",
+                        "label_bn": "নম্বর",
+                        "value_en": "01711000999",
+                        "value_bn": "01711000999",
+                    },
+                    {
+                        "label_en": "Branch",
+                        "label_bn": "শাখা",
+                        "value_en": "Uttara",
+                        "value_bn": "উত্তরা",
+                    },
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.data["code"], "upay")
+        self.assertEqual(len(created.data["details"]), 2)
+
+        public = self.client.get("/api/admissions/info/?lang=en")
+        method = next(row for row in public.data["methods"] if row["code"] == "upay")
+        self.assertEqual(method["details"][1]["label"], "Branch")
+        self.assertEqual(method["details"][1]["value"], "Uttara")
+
+    def _png(self, name):
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), "green").save(buffer, format="PNG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+    def test_bulk_upload_gallery_images(self):
+        self.auth()
+        album = GalleryAlbum.objects.create(
+            slug="campus-day",
+            title_en="Campus day",
+            title_bn="ক্যাম্পাস দিবস",
+            category="campus",
+        )
+        GalleryImage.objects.create(album=album, order=4)
+        response = self.client.post(
+            "/api/staff/images/bulk/",
+            {
+                "album": album.id,
+                "images": [self._png("one.png"), self._png("two.png")],
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(len(response.data), 2)
+        orders = list(album.images.order_by("order").values_list("order", flat=True))
+        self.assertEqual(orders, [4, 5, 6])
+
+        rejected = self.client.post(
+            "/api/staff/images/bulk/",
+            {
+                "album": album.id,
+                "images": SimpleUploadedFile("notes.txt", b"not-an-image", content_type="text/plain"),
+            },
+            format="multipart",
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(album.images.count(), 3)
 
 
 class CreateSuTests(TestCase):
