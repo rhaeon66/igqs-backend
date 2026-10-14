@@ -83,20 +83,28 @@ class StaffContentTests(APITestCase):
         )
         self.assertEqual(updated.status_code, 200, updated.content)
         self.assertIn("/media/", updated.data["hero_image"])
-        self.assertEqual(updated.data["hero_image_url"], "https://example.com/hero.jpg")
+        self.assertEqual(updated.data["hero_image_url"], "")
 
         public = self.client.get("/api/home/?lang=en")
         self.assertIn("/media/", public.data["home"]["hero_image_url"])
 
+        ignored = self.client.patch(
+            "/api/staff/home/",
+            {"hero_image_url": ""},
+            format="json",
+        )
+        self.assertEqual(ignored.status_code, 200, ignored.content)
+        self.assertIn("/media/", ignored.data["hero_image"])
+
         cleared = self.client.patch(
             "/api/staff/home/",
-            {"clear_hero_image": True},
+            {"clear_hero_image": True, "hero_image_url": ""},
             format="json",
         )
         self.assertEqual(cleared.status_code, 200, cleared.content)
         self.assertIsNone(cleared.data["hero_image"])
         public = self.client.get("/api/home/?lang=en")
-        self.assertEqual(public.data["home"]["hero_image_url"], "https://example.com/hero.jpg")
+        self.assertEqual(public.data["home"]["hero_image_url"], "")
 
     def test_create_why_choose_news_event_and_fee(self):
         self.auth()

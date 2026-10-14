@@ -46,6 +46,21 @@ class SlugFromTitleMixin:
 class ClearUploadedImagesMixin:
     uploaded_image_fields: tuple[str, ...] = ()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        for name in self.uploaded_image_fields:
+            url_field = f"{name}_url"
+            has_file = bool(attrs.get(name))
+            clearing = bool(attrs.get(f"clear_{name}"))
+            if (
+                url_field in attrs
+                and not attrs.get(url_field)
+                and not has_file
+                and not clearing
+            ):
+                attrs.pop(url_field)
+        return attrs
+
     def _clear_uploaded_images(self, instance, validated_data):
         for name in self.uploaded_image_fields:
             if not validated_data.pop(f"clear_{name}", False):
@@ -54,14 +69,28 @@ class ClearUploadedImagesMixin:
             if current:
                 current.delete(save=False)
             setattr(instance, name, None)
+            url_field = f"{name}_url"
+            if hasattr(instance, url_field):
+                setattr(instance, url_field, "")
+
+    def _drop_urls_replaced_by_uploads(self, validated_data):
+        field_names = {field.name for field in self.Meta.model._meta.fields}
+        for name in self.uploaded_image_fields:
+            if not validated_data.get(name):
+                continue
+            url_field = f"{name}_url"
+            if url_field in field_names:
+                validated_data[url_field] = ""
 
     def update(self, instance, validated_data):
         self._clear_uploaded_images(instance, validated_data)
+        self._drop_urls_replaced_by_uploads(validated_data)
         return super().update(instance, validated_data)
 
     def create(self, validated_data):
         for name in self.uploaded_image_fields:
             validated_data.pop(f"clear_{name}", None)
+        self._drop_urls_replaced_by_uploads(validated_data)
         return super().create(validated_data)
 
 
