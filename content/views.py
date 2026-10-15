@@ -9,6 +9,7 @@ from .models import (
     Event,
     Facility,
     GalleryAlbum,
+    HeroSlide,
     HomeContent,
     Leader,
     NewsPost,
@@ -29,6 +30,7 @@ from .serializers import (
     NewsListSerializer,
     SiteSettingsSerializer,
     WhyChooseSerializer,
+    abs_url,
 )
 
 
@@ -47,16 +49,35 @@ class SiteSettingsView(APIView):
 class HomeView(APIView):
     def get(self, request):
         home = HomeContent.objects.first()
-        if not home:
-            return Response({}, status=status.HTTP_404_NOT_FOUND)
         now = timezone.now()
         events = Event.objects.filter(is_published=True, start_at__gte=now)[:3]
         news = NewsPost.objects.filter(is_published=True)[:4]
         notices = NewsPost.objects.filter(is_published=True, is_important=True)[:5]
         gallery = GalleryAlbum.objects.prefetch_related("images")[:4]
+        empty_home = {
+            "hero_title": "",
+            "hero_subtitle": "",
+            "hero_image_url": "",
+            "welcome": "",
+            "about_preview": "",
+            "principal_name": "",
+            "principal_title": "",
+            "principal_message": "",
+            "principal_photo_url": "",
+        }
+        slides = [
+            abs_url(request, slide.image.url)
+            for slide in HeroSlide.objects.all()
+            if slide.image
+        ]
         return Response(
             {
-                "home": HomeContentSerializer(home, context=ctx(request)).data,
+                "home": (
+                    HomeContentSerializer(home, context=ctx(request)).data
+                    if home
+                    else empty_home
+                ),
+                "hero_images": slides,
                 "why_choose": WhyChooseSerializer(
                     WhyChooseItem.objects.all(), many=True, context=ctx(request)
                 ).data,

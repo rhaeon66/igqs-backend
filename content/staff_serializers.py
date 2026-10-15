@@ -11,6 +11,7 @@ from .models import (
     Facility,
     GalleryAlbum,
     GalleryImage,
+    HeroSlide,
     HomeContent,
     Leader,
     NewsPost,
@@ -162,6 +163,18 @@ class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSeri
             "clear_principal_photo",
             "principal_photo_url",
         ]
+
+
+class StaffHeroSlideSerializer(serializers.ModelSerializer):
+    image_src = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HeroSlide
+        fields = ["id", "image", "image_src", "order"]
+        extra_kwargs = {"image": {"required": True}}
+
+    def get_image_src(self, obj):
+        return abs_url(self.context.get("request"), obj.image.url if obj.image else "")
 
 
 class StaffWhyChooseSerializer(serializers.ModelSerializer):

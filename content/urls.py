@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from . import staff_views, views
 
 router = DefaultRouter()
+router.register("staff/hero-slides", staff_views.HeroSlideViewSet, basename="staff-hero-slides")
 router.register("staff/why-choose", staff_views.WhyChooseViewSet, basename="staff-why-choose")
 router.register("staff/leaders", staff_views.LeaderViewSet, basename="staff-leaders")
 router.register("staff/facilities", staff_views.FacilityViewSet, basename="staff-facilities")

@@ -92,6 +92,17 @@ class HomeContent(BilingualMixin, models.Model):
         return self.principal_photo_url
 
 
+class HeroSlide(models.Model):
+    image = models.ImageField(upload_to="home/slides/")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return f"Hero slide {self.pk}"
+
+
 class WhyChooseItem(BilingualMixin, models.Model):
     title_en = models.CharField(max_length=150)
     title_bn = models.CharField(max_length=150)
