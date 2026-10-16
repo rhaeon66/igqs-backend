@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
@@ -14,7 +14,9 @@ from content.models import (
     GalleryAlbum,
     GalleryImage,
     HomeContent,
+    HomeStat,
     Leader,
+    Testimonial,
     NewsPost,
     SiteSettings,
     Subject,
@@ -46,6 +48,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self._settings()
         self._home()
+        self._highlights()
+        self._testimonials()
         self._about()
         self._curriculum()
         self._payments()
@@ -159,6 +163,78 @@ class Command(BaseCommand):
                     description_bn="ছোট শ্রেণি, নিরাপদ ক্যাম্পাস এবং অভিভাবকদের সাথে ঘনিষ্ঠ অংশীদারিত্ব।",
                     icon="shield",
                     order=4,
+                ),
+            ]
+        )
+
+    def _highlights(self):
+        HomeStat.objects.all().delete()
+        HomeStat.objects.bulk_create(
+            [
+                HomeStat(
+                    value="600+",
+                    label_en="Total Students",
+                    label_bn="মোট শিক্ষার্থী",
+                    icon="users",
+                    order=1,
+                ),
+                HomeStat(
+                    value="40+",
+                    label_en="Expert Teachers",
+                    label_bn="অভিজ্ঞ শিক্ষক",
+                    icon="graduation-cap",
+                    order=2,
+                ),
+                HomeStat(
+                    value="270+",
+                    label_en="Students Of Merit",
+                    label_bn="কৃতী শিক্ষার্থী",
+                    icon="award",
+                    order=3,
+                ),
+                HomeStat(
+                    value="5+",
+                    label_en="Years Of Experience",
+                    label_bn="বছরের অভিজ্ঞতা",
+                    icon="sparkles",
+                    order=4,
+                ),
+            ]
+        )
+
+    def _testimonials(self):
+        Testimonial.objects.all().delete()
+        Testimonial.objects.bulk_create(
+            [
+                Testimonial(
+                    name_en="Amina Karim",
+                    name_bn="আমিনা করিম",
+                    role=Testimonial.GUARDIAN,
+                    quote_en="My child comes home reciting with care. The teachers correct gently and never rush a student.",
+                    quote_bn="আমার সন্তান যত্নসহ তিলাওয়াত করে বাড়ি ফেরে। শিক্ষকরা ধীরে ধীরে শুধরে দেন, কাউকে তাড়াহুড়ো করান না।",
+                    spoken_on=datetime(2026, 8, 12, tzinfo=timezone.utc),
+                    rating=5,
+                    order=1,
+                ),
+                Testimonial(
+                    name_en="Yusuf Hasan",
+                    name_bn="ইউসুফ হাসান",
+                    role=Testimonial.STUDENT,
+                    quote_en="I like reading the Qur'an here. When I miss a line, my teacher stays until I can say it properly.",
+                    quote_bn="এখানে কুরআন পড়তে আমার ভালো লাগে। কোনো লাইন বাদ পড়লে শিক্ষক ঠিকমতো বলতে না পারা পর্যন্ত সাথে থাকেন।",
+                    spoken_on=datetime(2026, 2, 3, tzinfo=timezone.utc),
+                    rating=5,
+                    order=2,
+                ),
+                Testimonial(
+                    name_en="Fatima Noor",
+                    name_bn="ফাতিমা নূর",
+                    role=Testimonial.GUARDIAN,
+                    quote_en="Salah, character, and school subjects sit together here. That is the balance we wanted for our daughter.",
+                    quote_bn="এখানে সালাত, চরিত্র ও স্কুলের পড়া একসাথে চলে। মেয়ের জন্য আমরা এই ভারসাম্যই চেয়েছিলাম।",
+                    spoken_on=datetime(2026, 1, 18, tzinfo=timezone.utc),
+                    rating=5,
+                    order=3,
                 ),
             ]
         )

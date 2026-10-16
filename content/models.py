@@ -103,12 +103,36 @@ class HeroSlide(models.Model):
         return f"Hero slide {self.pk}"
 
 
+STAT_ICONS = (
+    ("users", "Students"),
+    ("graduation-cap", "Teachers"),
+    ("award", "Award"),
+    ("sparkles", "Experience"),
+)
+
+
+class HomeStat(BilingualMixin, models.Model):
+    value = models.CharField(max_length=40)
+    label_en = models.CharField(max_length=80)
+    label_bn = models.CharField(max_length=80)
+    icon = models.CharField(max_length=40, choices=STAT_ICONS, default="users")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.value} {self.label_en}"
+
+
 class WhyChooseItem(BilingualMixin, models.Model):
     title_en = models.CharField(max_length=150)
     title_bn = models.CharField(max_length=150)
     description_en = models.TextField()
     description_bn = models.TextField()
     icon = models.CharField(max_length=40, default="book")
+    image = models.ImageField(upload_to="why/", blank=True)
+    image_url = models.URLField(blank=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -116,6 +140,45 @@ class WhyChooseItem(BilingualMixin, models.Model):
 
     def __str__(self) -> str:
         return self.title_en
+
+    @property
+    def image_src(self) -> str:
+        if self.image:
+            return self.image.url
+        return self.image_url
+
+
+class Testimonial(BilingualMixin, models.Model):
+    GUARDIAN = "guardian"
+    STUDENT = "student"
+    ROLE_CHOICES = (
+        (GUARDIAN, "Guardian"),
+        (STUDENT, "Student"),
+    )
+
+    name_en = models.CharField(max_length=120)
+    name_bn = models.CharField(max_length=120)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=GUARDIAN)
+    quote_en = models.TextField()
+    quote_bn = models.TextField()
+    spoken_on = models.DateTimeField(null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(default=5)
+    facebook_url = models.URLField(blank=True)
+    image = models.ImageField(upload_to="testimonials/", blank=True)
+    image_url = models.URLField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return self.name_en
+
+    @property
+    def image_src(self) -> str:
+        if self.image:
+            return self.image.url
+        return self.image_url
 
 
 class AboutPage(BilingualMixin, models.Model):

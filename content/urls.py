@@ -5,7 +5,9 @@ from . import staff_views, views
 
 router = DefaultRouter()
 router.register("staff/hero-slides", staff_views.HeroSlideViewSet, basename="staff-hero-slides")
+router.register("staff/highlights", staff_views.HomeStatViewSet, basename="staff-highlights")
 router.register("staff/why-choose", staff_views.WhyChooseViewSet, basename="staff-why-choose")
+router.register("staff/testimonials", staff_views.TestimonialViewSet, basename="staff-testimonials")
 router.register("staff/leaders", staff_views.LeaderViewSet, basename="staff-leaders")
 router.register("staff/facilities", staff_views.FacilityViewSet, basename="staff-facilities")
 router.register("staff/grades", staff_views.CurriculumGradeViewSet, basename="staff-grades")

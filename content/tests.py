@@ -106,6 +106,66 @@ class StaffContentTests(APITestCase):
         public = self.client.get("/api/home/?lang=en")
         self.assertEqual(public.data["home"]["hero_image_url"], "")
 
+    def test_home_highlight_is_editable_and_public(self):
+        self.auth()
+        created = self.client.post(
+            "/api/staff/highlights/",
+            {
+                "value": "12+",
+                "label_en": "New campuses",
+                "label_bn": "নতুন ক্যাম্পাস",
+                "icon": "users",
+                "order": 9,
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201)
+
+        public = self.client.get("/api/home/")
+        added = next(item for item in public.data["highlights"] if item["value"] == "12+")
+        self.assertEqual(added["label"], "নতুন ক্যাম্পাস")
+
+        public_en = self.client.get("/api/home/?lang=en")
+        added_en = next(item for item in public_en.data["highlights"] if item["value"] == "12+")
+        self.assertEqual(added_en["label"], "New campuses")
+
+    def test_testimonial_photo_is_public(self):
+        self.auth()
+        created = self.client.post(
+            "/api/staff/testimonials/",
+            {
+                "name_en": "Test Guardian",
+                "name_bn": "পরীক্ষার অভিভাবক",
+                "role": "guardian",
+                "quote_en": "The teachers are kind.",
+                "quote_bn": "শিক্ষকরা স্নেহশীল।",
+                "rating": 5,
+                "order": 9,
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), "blue").save(buffer, format="PNG")
+        upload = SimpleUploadedFile("face.png", buffer.getvalue(), content_type="image/png")
+        with_photo = self.client.patch(
+            f"/api/staff/testimonials/{created.data['id']}/",
+            {"image": upload},
+            format="multipart",
+        )
+        self.assertEqual(with_photo.status_code, 200, with_photo.content)
+        self.assertIn("/media/", with_photo.data["image"])
+
+        public = self.client.get("/api/home/?lang=en")
+        shown = next(item for item in public.data["testimonials"] if item["name"] == "Test Guardian")
+        self.assertEqual(shown["role"], "guardian")
+        self.assertIn("/media/", shown["image"])
+
+        public_bn = self.client.get("/api/home/")
+        shown_bn = next(item for item in public_bn.data["testimonials"] if item["quote"] == "শিক্ষকরা স্নেহশীল।")
+        self.assertEqual(shown_bn["name"], "পরীক্ষার অভিভাবক")
+
     def test_create_why_choose_news_event_and_fee(self):
         self.auth()
         card = self.client.post(
@@ -122,6 +182,20 @@ class StaffContentTests(APITestCase):
         )
         self.assertEqual(card.status_code, 201)
         self.assertEqual(WhyChooseItem.objects.count(), 1)
+
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), "green").save(buffer, format="PNG")
+        upload = SimpleUploadedFile("why.png", buffer.getvalue(), content_type="image/png")
+        with_photo = self.client.patch(
+            f"/api/staff/why-choose/{card.data['id']}/",
+            {"image": upload},
+            format="multipart",
+        )
+        self.assertEqual(with_photo.status_code, 200, with_photo.content)
+        self.assertIn("/media/", with_photo.data["image"])
+        public = self.client.get("/api/home/?lang=en")
+        shown = next(item for item in public.data["why_choose"] if item["title"] == "Care")
+        self.assertIn("/media/", shown["image"])
 
         news = self.client.post(
             "/api/staff/news/",

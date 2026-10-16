@@ -13,10 +13,12 @@ from .models import (
     GalleryImage,
     HeroSlide,
     HomeContent,
+    HomeStat,
     Leader,
     NewsPost,
     SiteSettings,
     Subject,
+    Testimonial,
     WhyChooseItem,
 )
 from .serializers import abs_url
@@ -177,7 +179,17 @@ class StaffHeroSlideSerializer(serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.image.url if obj.image else "")
 
 
-class StaffWhyChooseSerializer(serializers.ModelSerializer):
+class StaffHomeStatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HomeStat
+        fields = ["id", "value", "label_en", "label_bn", "icon", "order"]
+
+
+class StaffWhyChooseSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("image",)
+    clear_image = serializers.BooleanField(required=False, write_only=True)
+    image_src = serializers.SerializerMethodField()
+
     class Meta:
         model = WhyChooseItem
         fields = [
@@ -187,8 +199,48 @@ class StaffWhyChooseSerializer(serializers.ModelSerializer):
             "description_en",
             "description_bn",
             "icon",
+            "image",
+            "clear_image",
+            "image_url",
+            "image_src",
             "order",
         ]
+
+    def get_image_src(self, obj):
+        return abs_url(self.context.get("request"), obj.image_src)
+
+
+class StaffTestimonialSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+    uploaded_image_fields = ("image",)
+    clear_image = serializers.BooleanField(required=False, write_only=True)
+    image_src = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Testimonial
+        fields = [
+            "id",
+            "name_en",
+            "name_bn",
+            "role",
+            "quote_en",
+            "quote_bn",
+            "spoken_on",
+            "rating",
+            "facebook_url",
+            "image",
+            "clear_image",
+            "image_url",
+            "image_src",
+            "order",
+        ]
+
+    def validate_rating(self, value):
+        if value > 5:
+            raise serializers.ValidationError("Use a rating from 0 to 5.")
+        return value
+
+    def get_image_src(self, obj):
+        return abs_url(self.context.get("request"), obj.image_src)
 
 
 class StaffAboutPageSerializer(serializers.ModelSerializer):

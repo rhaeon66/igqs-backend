@@ -10,10 +10,12 @@ from .models import (
     GalleryAlbum,
     GalleryImage,
     HomeContent,
+    HomeStat,
     Leader,
     NewsPost,
     SiteSettings,
     Subject,
+    Testimonial,
     WhyChooseItem,
 )
 
@@ -139,19 +141,53 @@ class HomeContentSerializer(serializers.ModelSerializer):
         return abs_url(self.context.get("request"), obj.principal_photo_src)
 
 
+class HomeStatSerializer(serializers.ModelSerializer):
+    label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HomeStat
+        fields = ["id", "value", "label", "icon"]
+
+    def get_label(self, obj):
+        return loc(obj, "label", lang_of(self.context))
+
+
 class WhyChooseSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = WhyChooseItem
-        fields = ["id", "title", "description", "icon"]
+        fields = ["id", "title", "description", "icon", "image"]
 
     def get_title(self, obj):
         return loc(obj, "title", lang_of(self.context))
 
     def get_description(self, obj):
         return loc(obj, "description", lang_of(self.context))
+
+    def get_image(self, obj):
+        return abs_url(self.context.get("request"), obj.image_src)
+
+
+class TestimonialSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    quote = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Testimonial
+        fields = ["id", "name", "role", "quote", "spoken_on", "rating", "facebook_url", "image"]
+
+    def get_name(self, obj):
+        return loc(obj, "name", lang_of(self.context))
+
+    def get_quote(self, obj):
+        return loc(obj, "quote", lang_of(self.context))
+
+    def get_image(self, obj):
+        return abs_url(self.context.get("request"), obj.image_src)
 
 
 class AboutPageSerializer(serializers.ModelSerializer):

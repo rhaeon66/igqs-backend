@@ -11,9 +11,11 @@ from .models import (
     GalleryAlbum,
     HeroSlide,
     HomeContent,
+    HomeStat,
     Leader,
     NewsPost,
     SiteSettings,
+    Testimonial,
     WhyChooseItem,
 )
 from .serializers import (
@@ -25,10 +27,12 @@ from .serializers import (
     FacilitySerializer,
     GalleryAlbumSerializer,
     HomeContentSerializer,
+    HomeStatSerializer,
     LeaderSerializer,
     NewsDetailSerializer,
     NewsListSerializer,
     SiteSettingsSerializer,
+    TestimonialSerializer,
     WhyChooseSerializer,
     abs_url,
 )
@@ -78,8 +82,14 @@ class HomeView(APIView):
                     else empty_home
                 ),
                 "hero_images": slides,
+                "highlights": HomeStatSerializer(
+                    HomeStat.objects.all(), many=True, context=ctx(request)
+                ).data,
                 "why_choose": WhyChooseSerializer(
                     WhyChooseItem.objects.all(), many=True, context=ctx(request)
+                ).data,
+                "testimonials": TestimonialSerializer(
+                    Testimonial.objects.all(), many=True, context=ctx(request)
                 ).data,
                 "upcoming_events": EventListSerializer(
                     events, many=True, context=ctx(request)

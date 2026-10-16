@@ -10,6 +10,7 @@ from admissions.models import AdmissionFee, PaymentMethod
 from admissions.permissions import IsStaffUser
 
 from .models import (
+    STAT_ICONS,
     AboutPage,
     CurriculumDocument,
     CurriculumGrade,
@@ -19,10 +20,12 @@ from .models import (
     GalleryImage,
     HeroSlide,
     HomeContent,
+    HomeStat,
     Leader,
     NewsPost,
     SiteSettings,
     Subject,
+    Testimonial,
     WhyChooseItem,
 )
 from .staff_serializers import (
@@ -36,11 +39,13 @@ from .staff_serializers import (
     StaffGalleryImageSerializer,
     StaffHeroSlideSerializer,
     StaffHomeContentSerializer,
+    StaffHomeStatSerializer,
     StaffLeaderSerializer,
     StaffNewsSerializer,
     StaffPaymentMethodSerializer,
     StaffSiteSettingsSerializer,
     StaffSubjectSerializer,
+    StaffTestimonialSerializer,
     StaffWhyChooseSerializer,
 )
 
@@ -124,6 +129,16 @@ class HeroSlideViewSet(StaffModelViewSet):
             self.get_serializer(created, many=True).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class HomeStatViewSet(StaffModelViewSet):
+    queryset = HomeStat.objects.all()
+    serializer_class = StaffHomeStatSerializer
+
+
+class TestimonialViewSet(StaffModelViewSet):
+    queryset = Testimonial.objects.all()
+    serializer_class = StaffTestimonialSerializer
 
 
 class WhyChooseViewSet(StaffModelViewSet):
@@ -307,5 +322,6 @@ class StaffCmsMetaView(StaffAuthMixin, APIView):
                     {"value": "heart", "label": "Heart"},
                     {"value": "shield", "label": "Shield"},
                 ],
+                "stat_icons": [{"value": value, "label": label} for value, label in STAT_ICONS],
             }
         )

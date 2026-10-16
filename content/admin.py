@@ -10,10 +10,12 @@ from .models import (
     GalleryAlbum,
     GalleryImage,
     HomeContent,
+    HomeStat,
     Leader,
     NewsPost,
     SiteSettings,
     Subject,
+    Testimonial,
     WhyChooseItem,
 )
 
@@ -34,6 +36,16 @@ class HomeContentAdmin(admin.ModelAdmin):
 class AboutPageAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return not AboutPage.objects.exists()
+
+
+@admin.register(HomeStat)
+class HomeStatAdmin(admin.ModelAdmin):
+    list_display = ("value", "label_en", "icon", "order")
+
+
+@admin.register(Testimonial)
+class TestimonialAdmin(admin.ModelAdmin):
+    list_display = ("name_en", "role", "rating", "order")
 
 
 @admin.register(WhyChooseItem)
