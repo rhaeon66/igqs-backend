@@ -214,6 +214,10 @@ class StaffContentTests(APITestCase):
         self.assertEqual(news.status_code, 201)
         self.assertTrue(news.data["slug"])
         self.assertEqual(NewsPost.objects.get(pk=news.data["id"]).is_important, True)
+        notices = self.client.get("/api/news/?important=1&lang=en")
+        self.assertEqual(notices.status_code, 200)
+        self.assertEqual([item["title"] for item in notices.data], ["Holiday notice"])
+        self.assertEqual(notices.data[0]["category"], "holiday")
 
         event = self.client.post(
             "/api/staff/events/",

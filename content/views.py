@@ -177,6 +177,8 @@ class NewsListView(generics.ListAPIView):
         category = self.request.query_params.get("category")
         if category:
             qs = qs.filter(category=category)
+        if self.request.query_params.get("important") in {"1", "true"}:
+            qs = qs.filter(is_important=True)
         return qs
 
 
