@@ -165,19 +165,6 @@ class AdmissionReceiptApiTests(APITestCase):
     def setUp(self):
         seed_admission_catalog()
 
-    def verify_phone(self, phone="01711000111"):
-        sent = self.client.post("/api/admissions/otp/send/", {"phone": phone}, format="json")
-        self.assertEqual(sent.status_code, 200, sent.content)
-        self.assertTrue(sent.data.get("debug_otp"))
-        verified = self.client.post(
-            "/api/admissions/otp/verify/",
-            {"phone": phone, "otp": sent.data["debug_otp"]},
-            format="json",
-        )
-        self.assertEqual(verified.status_code, 200, verified.content)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {verified.data['token']}")
-        return verified.data
-
     def test_apply_returns_receipt_and_download(self):
         payload = apply_payload()
         response = self.client.post("/api/admissions/apply/", payload, format="multipart")
@@ -423,17 +410,6 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
     def setUp(self):
         seed_admission_catalog()
 
-    def verify_phone(self, phone="01711000111"):
-        sent = self.client.post("/api/admissions/otp/send/", {"phone": phone}, format="json")
-        self.assertEqual(sent.status_code, 200, sent.content)
-        verified = self.client.post(
-            "/api/admissions/otp/verify/",
-            {"phone": phone, "otp": sent.data["debug_otp"]},
-            format="json",
-        )
-        self.assertEqual(verified.status_code, 200, verified.content)
-        return verified.data
-
     def test_classes_exclude_hifz(self):
         response = self.client.get("/api/admissions/classes/?lang=en")
         self.assertEqual(response.status_code, 200)
@@ -507,8 +483,6 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         self.assertIn("payment_amount", mismatch.data)
 
     def test_my_payments_are_isolated(self):
-        first = self.verify_phone("01711000111")
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first['token']}")
         created = self.client.post(
             "/api/admissions/apply/",
             apply_payload(mobile="01711000111", payer_mobile="01711000111"),
@@ -516,21 +490,17 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         )
         self.assertEqual(created.status_code, 201, created.content)
 
-        mine = self.client.get("/api/admissions/me/applications/")
+        mine = self.client.get("/api/admissions/me/applications/?phone=01711000111")
         self.assertEqual(mine.status_code, 200)
         self.assertEqual(mine.data["count"], 1)
         self.assertEqual(mine.data["results"][0]["application_id"], created.data["application_id"])
 
-        other = self.verify_phone("01811000111")
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {other['token']}")
-        isolated = self.client.get("/api/admissions/me/applications/")
-        self.assertEqual(isolated.status_code, 200)
-        self.assertEqual(isolated.data["count"], 0)
+        other = self.client.get("/api/admissions/me/applications/?phone=01811000111")
+        self.assertEqual(other.status_code, 200)
+        self.assertEqual(other.data["count"], 0)
 
-        anonymous = self.client.credentials()
-        denied = self.client.get("/api/admissions/me/applications/")
-        self.assertEqual(denied.status_code, 401)
-        self.assertIsNone(anonymous)
+        missing = self.client.get("/api/admissions/me/applications/")
+        self.assertEqual(missing.status_code, 400)
 
     @override_settings(STAFF_NOTIFICATION_EMAIL="")
     def test_staff_notification_skipped_without_env(self):

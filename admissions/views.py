@@ -177,16 +177,20 @@ class AdmissionApplicationCreateView(generics.CreateAPIView):
 
 class MyApplicationsView(APIView):
     def get(self, request):
-        session = get_guardian_session(request)
-        if not session:
+        raw = (request.query_params.get("phone") or "").strip()
+        if not raw:
             return Response(
-                {"detail": "Phone verification is required."},
-                status=status.HTTP_401_UNAUTHORIZED,
+                {"detail": "Enter a mobile number."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        applications = AdmissionApplication.objects.filter(mobile=session.phone)
+        try:
+            phone = normalize_bd_phone(raw)
+        except PhoneError as exc:
+            return phone_error_response(exc)
+        applications = AdmissionApplication.objects.filter(mobile=phone)
         return Response(
             {
-                "phone": session.phone,
+                "phone": phone,
                 "count": applications.count(),
                 "results": [application_payload(item, request) for item in applications],
             }

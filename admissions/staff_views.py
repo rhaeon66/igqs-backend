@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from io import StringIO
 
 from django.contrib.auth import authenticate
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Case, Count, IntegerField, Max, Q, Sum, When
 from django.utils.text import slugify
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -141,7 +141,19 @@ def filtered_queryset(request):
     }
     if sort not in allowed:
         sort = "-created_at"
-    return qs.order_by(sort)
+    if sort in ("status", "-status"):
+        ranked = qs.annotate(
+            status_rank=Case(
+                When(status=ApplicationStatus.PENDING, then=0),
+                When(status=ApplicationStatus.APPROVED, then=1),
+                When(status=ApplicationStatus.REJECTED, then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+        )
+        direction = "status_rank" if sort == "status" else "-status_rank"
+        return ranked.order_by(direction, "-created_at")
+    return qs.order_by(sort, "-created_at")
 
 
 class StaffAuthMixin:

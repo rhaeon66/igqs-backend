@@ -67,6 +67,33 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             value = value or (detail.value_en if lang == "bn" else detail.value_bn)
             if label or value:
                 rows.append({"label": label, "value": value})
+        if rows:
+            return rows
+        labels = (
+            {
+                "account_name": "হিসাবের নাম",
+                "account_number": "হিসাব নম্বর",
+                "bank_name": "ব্যাংক",
+                "payment_type": "পেমেন্টের ধরন",
+            }
+            if lang == "bn"
+            else {
+                "account_name": "Account name",
+                "account_number": "Account number",
+                "bank_name": "Bank",
+                "payment_type": "Payment type",
+            }
+        )
+        for field in ("account_name", "account_number", "bank_name"):
+            value = (getattr(obj, field, "") or "").strip()
+            if value:
+                rows.append({"label": labels[field], "value": value})
+        payment_type = obj.localized("payment_type", lang).strip()
+        if payment_type:
+            rows.append({"label": labels["payment_type"], "value": payment_type})
+        instructions = obj.localized("instructions", lang).strip()
+        if instructions:
+            rows.append({"label": "", "value": instructions})
         return rows
 
 
