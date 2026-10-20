@@ -394,6 +394,69 @@ class StaffContactMessageTests(APITestCase):
         self.assertFalse(ContactMessage.objects.filter(pk=self.message.pk).exists())
 
 
+class StaffCurriculumGradeFeeTests(APITestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="igqs", password="secret", is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def test_create_sets_fee_and_admission_flags_in_one_request(self):
+        created = self.client.post(
+            "/api/staff/grades/",
+            {
+                "name_en": "Class 2",
+                "name_bn": "দ্বিতীয় শ্রেণি",
+                "description_en": "General curriculum",
+                "description_bn": "সাধারণ পাঠ্যক্রম",
+                "order": 1,
+                "open_for_admission": True,
+                "listed_on_curriculum": True,
+                "fee_amount": "12500",
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.data["fee_amount"], "12500.00")
+        self.assertTrue(created.data["open_for_admission"])
+
+        public_classes = self.client.get("/api/admissions/classes/?lang=en")
+        self.assertIn("Class 2", [row["name"] for row in public_classes.data])
+
+        public_curriculum = self.client.get("/api/curriculum/?lang=en")
+        self.assertIn("Class 2", [row["name"] for row in public_curriculum.data])
+
+        # Changing the fee updates the same AdmissionFee row rather than
+        # creating a second active one for the same grade.
+        updated = self.client.patch(
+            f"/api/staff/grades/{created.data['id']}/",
+            {"fee_amount": "13000"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.content)
+        self.assertEqual(updated.data["fee_amount"], "13000.00")
+        self.assertEqual(AdmissionFee.objects.filter(grade_id=created.data["id"]).count(), 1)
+
+    def test_admission_fee_endpoint_ignores_a_submitted_grade(self):
+        grade = self.client.post(
+            "/api/staff/grades/",
+            {
+                "name_en": "Class 3",
+                "name_bn": "তৃতীয় শ্রেণি",
+                "description_en": "General curriculum",
+                "description_bn": "সাধারণ পাঠ্যক্রম",
+            },
+            format="json",
+        ).data
+        response = self.client.post(
+            "/api/staff/fees/",
+            {"amount": "9000", "currency": "BDT", "label_en": "x", "label_bn": "x", "grade": grade["id"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertIsNone(response.data["grade"])
+
+
 class CreateSuTests(TestCase):
     def test_createsu_is_registered(self):
         self.assertIn("createsu", get_commands())

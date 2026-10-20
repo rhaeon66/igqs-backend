@@ -159,9 +159,11 @@ class FacilityViewSet(StaffModelViewSet):
 
 
 class CurriculumGradeViewSet(StaffModelViewSet):
-    queryset = CurriculumGrade.objects.filter(listed_on_curriculum=True).prefetch_related(
-        "subjects", "documents"
-    )
+    # Every class, not just the ones currently shown on the public
+    # curriculum page — this is also where staff set a class's admission
+    # fee and open/closed status, so admission-only classes must be listed
+    # here too.
+    queryset = CurriculumGrade.objects.prefetch_related("subjects", "documents")
     serializer_class = StaffCurriculumGradeSerializer
 
 
@@ -273,8 +275,19 @@ class GalleryImageViewSet(StaffModelViewSet):
 
 
 class AdmissionFeeViewSet(StaffModelViewSet):
-    queryset = AdmissionFee.objects.select_related("grade")
+    # The default (no-grade) admission fee only. Per-class fees are now set
+    # from the class's own editor (CurriculumGradeViewSet / fee_amount), the
+    # single place that keeps exactly one active fee per grade — this view
+    # staying open to any grade would let staff create a second, divergent
+    # fee for the same class through this raw CRUD screen.
+    queryset = AdmissionFee.objects.filter(grade__isnull=True)
     serializer_class = StaffAdmissionFeeSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(grade=None)
+
+    def perform_update(self, serializer):
+        serializer.save(grade=None)
 
 
 class PaymentMethodViewSet(StaffModelViewSet):

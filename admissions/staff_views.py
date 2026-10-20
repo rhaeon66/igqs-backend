@@ -1,6 +1,5 @@
 import csv
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from io import StringIO
 
 from django.contrib.auth import authenticate
@@ -18,7 +17,7 @@ from rest_framework.views import APIView
 from .authentication import LocalStaffAuthentication
 from content.models import CurriculumGrade
 
-from .eligibility import admission_grades
+from .eligibility import admission_grades, parse_fee_amount, set_class_fee
 from .models import AdmissionApplication, AdmissionFee, ApplicationStatus
 from .permissions import IsStaffUser
 from .receipts import issue_receipt, refresh_application_after_review
@@ -431,38 +430,6 @@ def _class_fee_rows():
     return rows
 
 
-def _parse_fee_amount(raw):
-    if raw is None or str(raw).strip() == "":
-        return None
-    try:
-        amount = Decimal(str(raw).strip())
-    except InvalidOperation as exc:
-        raise ValueError from exc
-    if amount < 0 or amount > Decimal("99999999.99"):
-        raise ValueError
-    return amount.quantize(Decimal("0.01"))
-
-
-def _set_class_fee(grade, amount):
-    existing = AdmissionFee.objects.filter(grade=grade).order_by("-is_active", "id")
-    if amount is None:
-        existing.filter(is_active=True).update(is_active=False)
-        return
-    fee = existing.first()
-    if fee is None:
-        fee = AdmissionFee.objects.create(
-            grade=grade,
-            amount=amount,
-            currency="BDT",
-            is_active=True,
-        )
-    else:
-        fee.amount = amount
-        fee.is_active = True
-        fee.save(update_fields=["amount", "is_active"])
-    existing.exclude(pk=fee.pk).filter(is_active=True).update(is_active=False)
-
-
 class StaffClassFeeView(StaffAuthMixin, APIView):
     def get(self, request):
         return Response({"fees": _class_fee_rows()})
@@ -506,7 +473,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
                 continue
             seen.add(key)
             try:
-                amount = _parse_fee_amount(row.get("amount"))
+                amount = parse_fee_amount(row.get("amount"))
             except ValueError:
                 return Response(
                     {"detail": "Enter a valid fee amount."},
@@ -515,7 +482,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
             updates.append((grade, amount))
 
         for grade, amount in updates:
-            _set_class_fee(grade, amount)
+            set_class_fee(grade, amount)
         return Response({"fees": _class_fee_rows()})
 
     def post(self, request):
@@ -527,7 +494,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            amount = _parse_fee_amount(request.data.get("amount"))
+            amount = parse_fee_amount(request.data.get("amount"))
         except ValueError:
             return Response(
                 {"detail": "Enter a valid fee amount."},
@@ -549,7 +516,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
             open_for_admission=True,
             listed_on_curriculum=False,
         )
-        _set_class_fee(grade, amount)
+        set_class_fee(grade, amount)
         return Response({"fees": _class_fee_rows()}, status=status.HTTP_201_CREATED)
 
     def delete(self, request):
@@ -567,7 +534,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
                 {"detail": "Class not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        _set_class_fee(grade, None)
+        set_class_fee(grade, None)
         if grade.listed_on_curriculum:
             grade.open_for_admission = False
             grade.save(update_fields=["open_for_admission"])

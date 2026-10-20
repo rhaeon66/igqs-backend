@@ -266,6 +266,21 @@ class CurriculumGrade(BilingualMixin, models.Model):
     def __str__(self) -> str:
         return self.name_en
 
+    @property
+    def fee_amount(self) -> str:
+        # The admission fee lives on a separate admissions.AdmissionFee row,
+        # not a column here. Exposed as a same-named property (rather than
+        # a cross-app join in every caller) so the staff CurriculumGrade
+        # serializer can read/display it like any other field. Import is
+        # local to avoid a circular import (admissions already imports
+        # CurriculumGrade from this module).
+        if not self.pk:
+            return ""
+        from admissions.eligibility import fee_for_grade
+
+        fee = fee_for_grade(self)
+        return str(fee.amount) if fee else ""
+
 
 class SubjectCategory(models.TextChoices):
     QURANIC = "quranic", "Qur'anic studies"

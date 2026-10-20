@@ -1,6 +1,7 @@
 from django.utils.text import slugify
 from rest_framework import serializers
 
+from admissions.eligibility import parse_fee_amount, set_class_fee
 from admissions.models import AdmissionFee, PaymentDetail, PaymentMethod
 
 from .models import (
@@ -355,6 +356,11 @@ class StaffCurriculumDocumentSerializer(serializers.ModelSerializer):
 class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
     subjects = StaffSubjectSerializer(many=True, read_only=True)
     documents = StaffCurriculumDocumentSerializer(many=True, read_only=True)
+    # Admission fee lives on a separate AdmissionFee row (one per grade), not
+    # a column on CurriculumGrade — exposed here (backed by the model's
+    # fee_amount property for reads) so staff manage a class's curriculum
+    # content and its admission fee in one place instead of two.
+    fee_amount = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = CurriculumGrade
@@ -366,6 +372,9 @@ class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerial
             "description_en",
             "description_bn",
             "order",
+            "open_for_admission",
+            "listed_on_curriculum",
+            "fee_amount",
             "subjects",
             "documents",
         ]
@@ -376,6 +385,25 @@ class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerial
             name = attrs.get("name_en") or getattr(self.instance, "name_en", "")
             attrs["slug"] = unique_slug(CurriculumGrade, name, self.instance)
         return attrs
+
+    def validate_fee_amount(self, value):
+        try:
+            return parse_fee_amount(value)
+        except ValueError:
+            raise serializers.ValidationError("Enter a valid fee amount.")
+
+    def create(self, validated_data):
+        fee_amount = validated_data.pop("fee_amount", None)
+        grade = super().create(validated_data)
+        set_class_fee(grade, fee_amount)
+        return grade
+
+    def update(self, instance, validated_data):
+        fee_amount = validated_data.pop("fee_amount", serializers.empty)
+        grade = super().update(instance, validated_data)
+        if fee_amount is not serializers.empty:
+            set_class_fee(grade, fee_amount)
+        return grade
 
 
 class StaffEventSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
