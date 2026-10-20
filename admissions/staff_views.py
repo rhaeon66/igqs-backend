@@ -230,13 +230,34 @@ class StaffAdmissionStatsView(StaffAuthMixin, APIView):
         )
 
 
+def parse_page_params(request):
+    try:
+        page = int(request.query_params.get("page") or 1)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = int(request.query_params.get("page_size") or 25)
+    except (TypeError, ValueError):
+        page_size = 25
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    return page, page_size
+
+
 class StaffApplicationListView(StaffAuthMixin, APIView):
     def get(self, request):
         qs = filtered_queryset(request)
+        count = qs.count()
+        page, page_size = parse_page_params(request)
+        start = (page - 1) * page_size
         return Response(
             {
-                "count": qs.count(),
-                "results": [staff_list_item(item, request) for item in qs],
+                "count": count,
+                "page": page,
+                "page_size": page_size,
+                "results": [
+                    staff_list_item(item, request) for item in qs[start : start + page_size]
+                ],
                 "classes": list(
                     AdmissionApplication.objects.order_by("applying_class")
                     .values_list("applying_class", flat=True)
@@ -285,6 +306,18 @@ class StaffApplicationStatusView(StaffAuthMixin, APIView):
         return Response(staff_detail_payload(application, request))
 
 
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _csv_safe(value):
+    text = "" if value is None else str(value)
+    if text and text[0] in _CSV_FORMULA_PREFIXES:
+        # Neutralize CSV/formula injection: Excel/LibreOffice would otherwise
+        # evaluate a cell like "=cmd|'/c calc'!A1" when staff open the export.
+        return f"'{text}"
+    return text
+
+
 class StaffApplicationExportView(StaffAuthMixin, APIView):
     def get(self, request, application_id=None):
         if application_id:
@@ -320,21 +353,24 @@ class StaffApplicationExportView(StaffAuthMixin, APIView):
         for application in qs:
             writer.writerow(
                 [
-                    application.application_id,
-                    application.receipt_id,
-                    application.get_status_display(),
-                    application.student_name,
-                    application.student_name_bn,
-                    application.guardian_name,
-                    application.applying_class,
-                    application.mobile,
-                    application.email,
-                    application.payment_method_label(),
-                    application.transaction_id,
-                    application.payment_amount,
-                    application.payment_date,
-                    timezone.localtime(application.created_at).strftime("%Y-%m-%d %H:%M"),
-                    application.rejection_reason,
+                    _csv_safe(value)
+                    for value in (
+                        application.application_id,
+                        application.receipt_id,
+                        application.get_status_display(),
+                        application.student_name,
+                        application.student_name_bn,
+                        application.guardian_name,
+                        application.applying_class,
+                        application.mobile,
+                        application.email,
+                        application.payment_method_label(),
+                        application.transaction_id,
+                        application.payment_amount,
+                        application.payment_date,
+                        timezone.localtime(application.created_at).strftime("%Y-%m-%d %H:%M"),
+                        application.rejection_reason,
+                    )
                 ]
             )
         response = HttpResponse(buffer.getvalue(), content_type="text/csv")

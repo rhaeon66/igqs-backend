@@ -8,24 +8,36 @@ import os
 import sys
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-5$wcb#k4h1fcyu0nc1vrb3-c@&z4zlsmags%3rq6!q-a-6^&j3",
-)
-
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
-
-# Local only. Skips staff and Django admin sign-in. Stays off during tests.
 _RUNNING_TESTS = "test" in sys.argv
-ADMIN_LOGIN_DISABLED = (not _RUNNING_TESTS) and os.getenv(
-    "ADMIN_LOGIN_DISABLED", ""
-).lower() in ("true", "1", "yes")
+
+# Fail closed, not open: an unset DJANGO_DEBUG means production-style
+# behavior (no verbose error pages) rather than quietly running wide open.
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
+
+_INSECURE_DEV_KEY = "django-insecure-5$wcb#k4h1fcyu0nc1vrb3-c@&z4zlsmags%3rq6!q-a-6^&j3"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if DEBUG or _RUNNING_TESTS:
+        SECRET_KEY = _INSECURE_DEV_KEY
+    else:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is not enabled."
+        )
+
+# Local only. Skips staff and Django admin sign-in. Stays off during tests,
+# and can never be enabled outside DEBUG, so a stray prod env var is inert.
+ADMIN_LOGIN_DISABLED = (
+    DEBUG
+    and (not _RUNNING_TESTS)
+    and os.getenv("ADMIN_LOGIN_DISABLED", "").lower() in ("true", "1", "yes")
+)
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -173,6 +185,15 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Public applicant/receipt lookup by ID — slows down ID enumeration.
+        "admission_lookup": "30/min",
+        # OTP send/verify — per-IP backstop in addition to the per-phone limits.
+        "admission_otp": "20/min",
+    },
 }
 
 
@@ -187,11 +208,12 @@ DEFAULT_FROM_EMAIL = os.getenv(
 STAFF_NOTIFICATION_EMAIL = os.getenv("STAFF_NOTIFICATION_EMAIL", "").strip()
 SMS_PROVIDER = os.getenv("SMS_PROVIDER", "").strip()
 
-MAILERS = {
-    "default": {
-        "BACKEND": os.getenv(
-            "DJANGO_EMAIL_BACKEND",
-            "django.core.mail.backends.console.EmailBackend",
-        ),
-    },
-}
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "yes")

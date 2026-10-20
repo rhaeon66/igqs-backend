@@ -19,6 +19,7 @@ router.register("staff/albums", staff_views.GalleryAlbumViewSet, basename="staff
 router.register("staff/images", staff_views.GalleryImageViewSet, basename="staff-images")
 router.register("staff/fees", staff_views.AdmissionFeeViewSet, basename="staff-fees")
 router.register("staff/methods", staff_views.PaymentMethodViewSet, basename="staff-methods")
+router.register("staff/messages", staff_views.ContactMessageViewSet, basename="staff-messages")
 
 urlpatterns = [
     path("site/", views.SiteSettingsView.as_view()),

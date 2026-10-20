@@ -4,13 +4,22 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command, get_commands
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from PIL import Image
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from admissions.models import AdmissionFee
-from content.models import Event, GalleryAlbum, GalleryImage, HomeContent, NewsPost, SiteSettings, WhyChooseItem
+from content.models import (
+    ContactMessage,
+    Event,
+    GalleryAlbum,
+    GalleryImage,
+    HomeContent,
+    NewsPost,
+    SiteSettings,
+    WhyChooseItem,
+)
 
 
 class StaffContentTests(APITestCase):
@@ -87,6 +96,18 @@ class StaffContentTests(APITestCase):
 
         public = self.client.get("/api/home/?lang=en")
         self.assertIn("/media/", public.data["home"]["hero_image_url"])
+
+        echoed = self.client.patch(
+            "/api/staff/home/",
+            {
+                "hero_title_en": "Title after echo",
+                "hero_image": updated.data["hero_image"],
+            },
+            format="json",
+        )
+        self.assertEqual(echoed.status_code, 200, echoed.content)
+        self.assertEqual(echoed.data["hero_title_en"], "Title after echo")
+        self.assertIn("/media/", echoed.data["hero_image"])
 
         ignored = self.client.patch(
             "/api/staff/home/",
@@ -332,6 +353,47 @@ class StaffContentTests(APITestCase):
         self.assertEqual(album.images.count(), 3)
 
 
+class StaffContactMessageTests(APITestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="igqs", password="secret", is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.message = ContactMessage.objects.create(
+            name="Guardian",
+            email="guardian@example.com",
+            subject="Admission question",
+            message="When does the next term start?",
+        )
+
+    def auth(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def test_requires_staff_auth(self):
+        denied = self.client.get("/api/staff/messages/")
+        self.assertEqual(denied.status_code, 401)
+
+    def test_list_mark_read_and_delete(self):
+        self.auth()
+        listed = self.client.get("/api/staff/messages/")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(len(listed.data), 1)
+        self.assertFalse(listed.data[0]["is_read"])
+
+        marked = self.client.patch(
+            f"/api/staff/messages/{self.message.pk}/", {"is_read": True}, format="json"
+        )
+        self.assertEqual(marked.status_code, 200)
+        self.assertTrue(marked.data["is_read"])
+
+        # Content fields are read-only even if a client tries to change them.
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.name, "Guardian")
+
+        deleted = self.client.delete(f"/api/staff/messages/{self.message.pk}/")
+        self.assertEqual(deleted.status_code, 204)
+        self.assertFalse(ContactMessage.objects.filter(pk=self.message.pk).exists())
+
+
 class CreateSuTests(TestCase):
     def test_createsu_is_registered(self):
         self.assertIn("createsu", get_commands())
@@ -361,3 +423,14 @@ class CreateSuTests(TestCase):
         with patch.dict("os.environ", env, clear=False):
             call_command("createsu")
         self.assertFalse(User.objects.filter(username="orphan").exists())
+
+    @override_settings(DEBUG=False)
+    def test_refuses_the_documented_example_password_in_production(self):
+        User = get_user_model()
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "prodadmin",
+            "DJANGO_SUPERUSER_PASSWORD": "igqs-admin-2026",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            call_command("createsu")
+        self.assertFalse(User.objects.filter(username="prodadmin").exists())

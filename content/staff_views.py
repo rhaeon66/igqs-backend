@@ -12,6 +12,7 @@ from admissions.permissions import IsStaffUser
 from .models import (
     STAT_ICONS,
     AboutPage,
+    ContactMessage,
     CurriculumDocument,
     CurriculumGrade,
     Event,
@@ -31,6 +32,7 @@ from .models import (
 from .staff_serializers import (
     StaffAboutPageSerializer,
     StaffAdmissionFeeSerializer,
+    StaffContactMessageSerializer,
     StaffCurriculumDocumentSerializer,
     StaffCurriculumGradeSerializer,
     StaffEventSerializer,
@@ -278,6 +280,23 @@ class AdmissionFeeViewSet(StaffModelViewSet):
 class PaymentMethodViewSet(StaffModelViewSet):
     queryset = PaymentMethod.objects.all()
     serializer_class = StaffPaymentMethodSerializer
+
+
+class ContactMessageViewSet(StaffAuthMixin, viewsets.ModelViewSet):
+    # Content fields (name/email/message) are applicant-submitted and
+    # read-only on the serializer; staff can only toggle is_read or delete.
+    http_method_names = ["get", "patch", "delete", "head", "options"]
+    queryset = ContactMessage.objects.all()
+    serializer_class = StaffContactMessageSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        is_read = self.request.query_params.get("is_read")
+        if is_read in ("true", "1"):
+            qs = qs.filter(is_read=True)
+        elif is_read in ("false", "0"):
+            qs = qs.filter(is_read=False)
+        return qs
 
 
 class StaffCmsMetaView(StaffAuthMixin, APIView):

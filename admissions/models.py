@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -173,10 +173,13 @@ class AdmissionApplication(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.application_id:
-            self.application_id, generated_receipt = self._next_ids()
-            if not self.receipt_id:
-                self.receipt_id = generated_receipt
-        elif not self.receipt_id:
+            with transaction.atomic():
+                self.application_id, generated_receipt = self._next_ids()
+                if not self.receipt_id:
+                    self.receipt_id = generated_receipt
+                super().save(*args, **kwargs)
+            return
+        if not self.receipt_id:
             self.receipt_id = self._receipt_id_for(self.application_id)
         super().save(*args, **kwargs)
 
@@ -184,8 +187,12 @@ class AdmissionApplication(models.Model):
     def _next_ids(cls) -> tuple[str, str]:
         year = timezone.localdate().year
         prefix = f"IGQS-{year}-"
+        # select_for_update() locks matching rows for the life of this
+        # transaction so a concurrent submission can't read the same "last"
+        # row before this one commits its new application_id/receipt_id.
         last = (
-            cls.objects.filter(application_id__startswith=prefix)
+            cls.objects.select_for_update()
+            .filter(application_id__startswith=prefix)
             .order_by("-application_id")
             .first()
         )

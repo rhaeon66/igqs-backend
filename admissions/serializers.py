@@ -5,6 +5,14 @@ from rest_framework import serializers
 from .eligibility import expected_fee_amount, resolve_admission_grade
 from .models import AdmissionApplication, AdmissionFee, Gender, PaymentMethod
 
+# Magic-byte signatures for the file types we accept as a birth certificate.
+# Checked against real file content, not just the extension or the
+# client-supplied content-type header.
+_PDF_SIGNATURE = b"%PDF-"
+_JPEG_SIGNATURE = b"\xff\xd8\xff"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_MAX_BIRTH_CERTIFICATE_BYTES = 6 * 1024 * 1024
+
 
 def lang_of(request) -> str:
     if request and request.query_params.get("lang") == "en":
@@ -137,6 +145,23 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
     def validate_gender(self, value):
         if value not in Gender.values:
             raise serializers.ValidationError("Invalid gender.")
+        return value
+
+    def validate_birth_certificate(self, value):
+        if not value:
+            raise serializers.ValidationError("Upload the birth certificate.")
+        if value.size > _MAX_BIRTH_CERTIFICATE_BYTES:
+            raise serializers.ValidationError("The file is too large.")
+        head = value.read(8)
+        value.seek(0)
+        if not (
+            head.startswith(_PDF_SIGNATURE)
+            or head.startswith(_JPEG_SIGNATURE)
+            or head.startswith(_PNG_SIGNATURE)
+        ):
+            raise serializers.ValidationError(
+                "Upload the birth certificate as a PDF, JPEG, or PNG file."
+            )
         return value
 
     def validate_payment_method(self, value):

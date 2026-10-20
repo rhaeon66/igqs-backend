@@ -5,6 +5,7 @@ from admissions.models import AdmissionFee, PaymentDetail, PaymentMethod
 
 from .models import (
     AboutPage,
+    ContactMessage,
     CurriculumDocument,
     CurriculumGrade,
     Event,
@@ -48,6 +49,20 @@ class SlugFromTitleMixin:
 
 class ClearUploadedImagesMixin:
     uploaded_image_fields: tuple[str, ...] = ()
+
+    def to_internal_value(self, data):
+        if hasattr(data, "copy"):
+            data = data.copy()
+        mutable = getattr(data, "_mutable", None)
+        if mutable is False:
+            data._mutable = True
+        for name in self.uploaded_image_fields:
+            value = data.get(name) if hasattr(data, "get") else None
+            if isinstance(value, str):
+                del data[name]
+        if mutable is False:
+            data._mutable = False
+        return super().to_internal_value(data)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -563,3 +578,19 @@ class StaffPaymentMethodSerializer(serializers.ModelSerializer):
         if details is not None:
             self._save_details(method, details)
         return method
+
+
+class StaffContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
+        fields = [
+            "id",
+            "name",
+            "email",
+            "phone",
+            "subject",
+            "message",
+            "is_read",
+            "created_at",
+        ]
+        read_only_fields = ["name", "email", "phone", "subject", "message", "created_at"]

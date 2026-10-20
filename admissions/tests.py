@@ -404,6 +404,22 @@ class StaffAdmissionTests(APITestCase):
         empty = self.client.get("/api/admissions/staff/applications/?date_from=2000-01-01&date_to=2000-01-01")
         self.assertEqual(empty.data["count"], 0)
 
+    def test_export_neutralizes_csv_formula_injection(self):
+        import csv as csv_module
+        from io import StringIO as StringIOBuffer
+
+        self.auth()
+        make_application(
+            student_name="=cmd|'/c calc'!A1",
+            transaction_id="TXNFORMULA001",
+        )
+        export = self.client.get("/api/admissions/staff/applications/export/")
+        self.assertEqual(export.status_code, 200)
+        rows = list(csv_module.reader(StringIOBuffer(export.content.decode())))
+        student_name_cells = [row[3] for row in rows[1:]]
+        self.assertIn("'=cmd|'/c calc'!A1", student_name_cells)
+        self.assertTrue(all(not cell.startswith("=") for cell in student_name_cells))
+
 
 @override_settings(DEBUG=True)
 class AdmissionOtpAndIntegrityTests(APITestCase):
@@ -482,7 +498,7 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         self.assertEqual(mismatch.status_code, 400)
         self.assertIn("payment_amount", mismatch.data)
 
-    def test_my_payments_are_isolated(self):
+    def test_my_payments_require_a_verified_otp_session(self):
         created = self.client.post(
             "/api/admissions/apply/",
             apply_payload(mobile="01711000111", payer_mobile="01711000111"),
@@ -490,17 +506,36 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         )
         self.assertEqual(created.status_code, 201, created.content)
 
-        mine = self.client.get("/api/admissions/me/applications/?phone=01711000111")
+        missing = self.client.get("/api/admissions/me/applications/")
+        self.assertEqual(missing.status_code, 400)
+
+        unverified = self.client.get("/api/admissions/me/applications/?phone=01711000111")
+        self.assertEqual(unverified.status_code, 401)
+        self.assertEqual(unverified.data["code"], "otp_required")
+
+        sent = self.client.post("/api/admissions/otp/send/", {"phone": "01711000111"}, format="json")
+        verified = self.client.post(
+            "/api/admissions/otp/verify/",
+            {"phone": "01711000111", "otp": sent.data["debug_otp"]},
+            format="json",
+        )
+        self.assertEqual(verified.status_code, 200)
+        token = verified.data["token"]
+
+        mine = self.client.get(
+            "/api/admissions/me/applications/?phone=01711000111",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
         self.assertEqual(mine.status_code, 200)
         self.assertEqual(mine.data["count"], 1)
         self.assertEqual(mine.data["results"][0]["application_id"], created.data["application_id"])
 
-        other = self.client.get("/api/admissions/me/applications/?phone=01811000111")
-        self.assertEqual(other.status_code, 200)
-        self.assertEqual(other.data["count"], 0)
-
-        missing = self.client.get("/api/admissions/me/applications/")
-        self.assertEqual(missing.status_code, 400)
+        # The verified session for 01711000111 must not unlock another number.
+        other = self.client.get(
+            "/api/admissions/me/applications/?phone=01811000111",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        self.assertEqual(other.status_code, 401)
 
     @override_settings(STAFF_NOTIFICATION_EMAIL="")
     def test_staff_notification_skipped_without_env(self):

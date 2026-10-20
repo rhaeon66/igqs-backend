@@ -1,9 +1,14 @@
 import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 User = get_user_model()
+
+# The value shipped in .env.example / README for local demo use. Refused in
+# production so a copy-pasted .env doesn't ship a publicly known credential.
+KNOWN_EXAMPLE_PASSWORD = "igqs-admin-2026"
 
 
 class Command(BaseCommand):
@@ -29,6 +34,17 @@ class Command(BaseCommand):
                 self.style.WARNING(
                     "DJANGO_SUPERUSER_USERNAME/PASSWORD or STAFF_USERNAME/PASSWORD "
                     "not set; skipping createsu."
+                )
+            )
+            return
+
+        if not settings.DEBUG and password == KNOWN_EXAMPLE_PASSWORD:
+            self.stderr.write(
+                self.style.ERROR(
+                    "Refusing to create/keep a production superuser with the "
+                    "publicly documented example password. Set "
+                    "DJANGO_SUPERUSER_PASSWORD (or STAFF_PASSWORD) to a unique "
+                    "value on this server before deploying."
                 )
             )
             return

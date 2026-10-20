@@ -1,7 +1,9 @@
+from django.db import IntegrityError, transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .eligibility import admission_grades
@@ -124,6 +126,9 @@ def phone_error_response(exc: PhoneError):
 
 
 class SendOtpView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_otp"
+
     def post(self, request):
         try:
             return Response(send_otp(request.data.get("phone") or ""))
@@ -132,6 +137,9 @@ class SendOtpView(APIView):
 
 
 class VerifyOtpView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_otp"
+
     def post(self, request):
         try:
             return Response(
@@ -165,7 +173,23 @@ class AdmissionApplicationCreateView(generics.CreateAPIView):
         data["payer_mobile"] = mobile
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        application = serializer.save()
+        try:
+            with transaction.atomic():
+                application = serializer.save()
+        except IntegrityError:
+            # Two submissions raced for the same application/receipt number,
+            # or the transaction ID was claimed a moment ago. Ask the
+            # applicant to resubmit rather than losing their payment proof
+            # to an unhandled 500.
+            return Response(
+                {
+                    "detail": (
+                        "This application could not be saved because of a "
+                        "conflict. Please submit the form again."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         issue_receipt(application, send_email=True)
         notify_staff_new_application(application)
         application.refresh_from_db()
@@ -176,6 +200,9 @@ class AdmissionApplicationCreateView(generics.CreateAPIView):
 
 
 class MyApplicationsView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
+
     def get(self, request):
         raw = (request.query_params.get("phone") or "").strip()
         if not raw:
@@ -187,6 +214,15 @@ class MyApplicationsView(APIView):
             phone = normalize_bd_phone(raw)
         except PhoneError as exc:
             return phone_error_response(exc)
+        session = get_guardian_session(request)
+        if not session or session.phone != phone:
+            return Response(
+                {
+                    "detail": "Verify this mobile number with an OTP first.",
+                    "code": "otp_required",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         applications = AdmissionApplication.objects.filter(mobile=phone)
         return Response(
             {
@@ -201,6 +237,8 @@ class AdmissionApplicationDetailView(generics.RetrieveAPIView):
     serializer_class = AdmissionApplicationSerializer
     queryset = AdmissionApplication.objects.all()
     lookup_field = "application_id"
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
 
     def retrieve(self, request, *args, **kwargs):
         application = self.get_object()
@@ -210,6 +248,9 @@ class AdmissionApplicationDetailView(generics.RetrieveAPIView):
 
 
 class AdmissionReceiptDownloadView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
+
     def get(self, request, application_id):
         application = get_object_or_404(
             AdmissionApplication, application_id=application_id
@@ -218,6 +259,9 @@ class AdmissionReceiptDownloadView(APIView):
 
 
 class AdmissionLookupView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
+
     def get(self, request):
         application = find_application_by_query(request.query_params.get("q") or "")
         if not application:
@@ -231,6 +275,9 @@ class AdmissionLookupView(APIView):
 
 
 class AdmissionReceiptLookupView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
+
     def get(self, request, receipt_id):
         application = find_application_by_receipt(receipt_id)
         if not application:
@@ -244,6 +291,9 @@ class AdmissionReceiptLookupView(APIView):
 
 
 class AdmissionReceiptPdfByIdView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "admission_lookup"
+
     def get(self, request, receipt_id):
         application = find_application_by_receipt(receipt_id)
         if not application:

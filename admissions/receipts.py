@@ -25,20 +25,35 @@ CREAM = HexColor("#f7f1e3")
 RULE = HexColor("#e4d5b3")
 
 _FONTS_READY = False
-LATIN = "IGQSSans"
-LATIN_BOLD = "IGQSSans-Bold"
-BENGALI = "IGQSBengali"
+# Fall back to ReportLab's built-in base fonts (always available, no system
+# dependency) if the Noto TrueType files aren't installed on this machine.
+# Bengali text will render as missing glyphs in that fallback, but receipt
+# generation — and therefore admission submission — won't crash.
+LATIN = "Helvetica"
+LATIN_BOLD = "Helvetica-Bold"
+BENGALI = "Helvetica"
 
 NOTO_DIR = Path("/usr/share/fonts/truetype/noto")
 
 
 def _register_fonts() -> None:
-    global _FONTS_READY
+    global _FONTS_READY, LATIN, LATIN_BOLD, BENGALI
     if _FONTS_READY:
         return
-    pdfmetrics.registerFont(TTFont(LATIN, str(NOTO_DIR / "NotoSans-Regular.ttf")))
-    pdfmetrics.registerFont(TTFont(LATIN_BOLD, str(NOTO_DIR / "NotoSans-Bold.ttf")))
-    pdfmetrics.registerFont(TTFont(BENGALI, str(NOTO_DIR / "NotoSansBengali-Regular.ttf")))
+    try:
+        pdfmetrics.registerFont(TTFont("IGQSSans", str(NOTO_DIR / "NotoSans-Regular.ttf")))
+        pdfmetrics.registerFont(TTFont("IGQSSans-Bold", str(NOTO_DIR / "NotoSans-Bold.ttf")))
+        pdfmetrics.registerFont(
+            TTFont("IGQSBengali", str(NOTO_DIR / "NotoSansBengali-Regular.ttf"))
+        )
+    except Exception:
+        logger.warning(
+            "Noto fonts not found at %s; receipts will use built-in PDF fonts "
+            "and Bengali text may not render correctly.",
+            NOTO_DIR,
+        )
+    else:
+        LATIN, LATIN_BOLD, BENGALI = "IGQSSans", "IGQSSans-Bold", "IGQSBengali"
     _FONTS_READY = True
 
 
@@ -90,26 +105,44 @@ def _draw_mark(c: canvas.Canvas, x: float, y: float, size: float) -> None:
 
 
 def _draw_wrapped(c, text, x, y, max_width, font, size, color=INK, leading=None):
+    # Word-wraps and draws text, choosing a font per word (not for the whole
+    # string) so a value that mixes Bengali and Latin script — a common case
+    # for bilingual names — doesn't render missing glyphs for whichever
+    # script the single chosen font didn't cover.
     leading = leading or size + 4
-    c.setFont(font, size)
     c.setFillColor(color)
     words = text.split()
     if not words:
         return y
-    lines = []
-    current = ""
+    bold = font == LATIN_BOLD
+    space_width = pdfmetrics.stringWidth(" ", LATIN, size)
+
+    lines: list[list[str]] = []
+    current: list[str] = []
+    current_width = 0.0
     for word in words:
-        trial = f"{current} {word}".strip()
-        if pdfmetrics.stringWidth(trial, font, size) <= max_width:
-            current = trial
+        word_width = pdfmetrics.stringWidth(word, _font_for(word, bold), size)
+        extra = (space_width if current else 0) + word_width
+        if current and current_width + extra > max_width:
+            lines.append(current)
+            current = [word]
+            current_width = word_width
         else:
-            if current:
-                lines.append(current)
-            current = word
+            current.append(word)
+            current_width += extra
     if current:
         lines.append(current)
-    for i, line in enumerate(lines):
-        c.drawString(x, y - i * leading, line)
+
+    for i, line_words in enumerate(lines):
+        line_y = y - i * leading
+        cursor_x = x
+        for j, word in enumerate(line_words):
+            if j > 0:
+                cursor_x += space_width
+            word_font = _font_for(word, bold)
+            c.setFont(word_font, size)
+            c.drawString(cursor_x, line_y, word)
+            cursor_x += pdfmetrics.stringWidth(word, word_font, size)
     return y - (len(lines) - 1) * leading
 
 
