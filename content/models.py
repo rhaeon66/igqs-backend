@@ -268,17 +268,19 @@ class CurriculumGrade(BilingualMixin, models.Model):
 
     @property
     def fee_amount(self) -> str:
-        # The admission fee lives on a separate admissions.AdmissionFee row,
-        # not a column here. Exposed as a same-named property (rather than
-        # a cross-app join in every caller) so the staff CurriculumGrade
-        # serializer can read/display it like any other field. Import is
-        # local to avoid a circular import (admissions already imports
-        # CurriculumGrade from this module).
+        # This class's own admission fee only — deliberately NOT
+        # admissions.eligibility.fee_for_grade(), which falls back to the
+        # school-wide default fee when a class has none of its own. That
+        # fallback is correct for "what does an applicant actually pay,"
+        # but wrong here: the staff editor needs to show/edit this specific
+        # class's fee, not silently display someone else's amount as if it
+        # were this class's setting. Import is local to avoid a circular
+        # import (admissions already imports CurriculumGrade from here).
         if not self.pk:
             return ""
-        from admissions.eligibility import fee_for_grade
+        from admissions.models import AdmissionFee
 
-        fee = fee_for_grade(self)
+        fee = AdmissionFee.objects.filter(grade=self, is_active=True).first()
         return str(fee.amount) if fee else ""
 
 
