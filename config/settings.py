@@ -21,6 +21,14 @@ _RUNNING_TESTS = "test" in sys.argv
 # behavior (no verbose error pages) rather than quietly running wide open.
 DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
 
+# Gunicorn sits behind nginx, which terminates TLS and forwards the original
+# scheme. Without this Django thinks every request is plain HTTP and builds
+# `http://` absolute URLs for media, breaking them as mixed content on the
+# HTTPS site. This was live on the server as an untracked hand-edit; it is
+# tracked here so a deploy cannot silently drop it. Harmless in local dev,
+# where nothing sets the header.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 _INSECURE_DEV_KEY = "django-insecure-5$wcb#k4h1fcyu0nc1vrb3-c@&z4zlsmags%3rq6!q-a-6^&j3"
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
