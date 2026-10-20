@@ -39,10 +39,24 @@ def unique_slug(model, value, instance=None):
     return slug
 
 
+def wants_new_slug(serializer, attrs) -> bool:
+    """True when the slug should be (re)generated from the title.
+
+    A PATCH that does not mention `slug` must leave it alone. Regenerating it
+    on every partial update rewrote hand-picked public URLs — PATCHing only a
+    class's fee turned `/curriculum/kg` into `/curriculum/kindergarten` and
+    broke every existing link to it. Sending `slug: ""` still means
+    "rebuild it from the title".
+    """
+    if "slug" in attrs:
+        return not attrs["slug"]
+    return not getattr(serializer.instance, "slug", "")
+
+
 class SlugFromTitleMixin:
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        if not attrs.get("slug"):
+        if wants_new_slug(self, attrs):
             title = attrs.get("title_en") or getattr(self.instance, "title_en", "")
             attrs["slug"] = unique_slug(self.Meta.model, title, self.instance)
         return attrs
@@ -334,7 +348,13 @@ class StaffSubjectSerializer(serializers.ModelSerializer):
         ]
 
 
-class StaffCurriculumDocumentSerializer(serializers.ModelSerializer):
+class StaffCurriculumDocumentSerializer(
+    ClearUploadedImagesMixin, serializers.ModelSerializer
+):
+    # The model has always had a `file` upload alongside `file_url`, but only
+    # the URL was exposed, so a syllabus PDF had to be hosted elsewhere first.
+    uploaded_image_fields = ("file",)
+    clear_file = serializers.BooleanField(required=False, write_only=True)
     download_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -344,6 +364,8 @@ class StaffCurriculumDocumentSerializer(serializers.ModelSerializer):
             "grade",
             "title_en",
             "title_bn",
+            "file",
+            "clear_file",
             "file_url",
             "download_url",
             "order",
@@ -381,7 +403,7 @@ class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerial
         extra_kwargs = {"slug": {"required": False, "allow_blank": True}}
 
     def validate(self, attrs):
-        if not attrs.get("slug"):
+        if wants_new_slug(self, attrs):
             name = attrs.get("name_en") or getattr(self.instance, "name_en", "")
             attrs["slug"] = unique_slug(CurriculumGrade, name, self.instance)
         return attrs

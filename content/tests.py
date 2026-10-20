@@ -12,6 +12,8 @@ from rest_framework.test import APITestCase
 from admissions.models import AdmissionFee
 from content.models import (
     ContactMessage,
+    CurriculumDocument,
+    CurriculumGrade,
     Event,
     GalleryAlbum,
     GalleryImage,
@@ -497,3 +499,135 @@ class CreateSuTests(TestCase):
         with patch.dict("os.environ", env, clear=False):
             call_command("createsu")
         self.assertFalse(User.objects.filter(username="prodadmin").exists())
+
+
+class StaffPartialUpdateSlugTests(APITestCase):
+    """A PATCH that does not mention `slug` must not rewrite it.
+
+    Regenerating the slug on every partial update destroyed hand-picked
+    public URLs: saving only a class's admission fee turned
+    `/curriculum/kg` into `/curriculum/kindergarten`.
+    """
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="igqs", password="secret", is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.grade = CurriculumGrade.objects.create(
+            slug="kg",
+            name_en="Kindergarten",
+            name_bn="কেজি",
+            description_en="Early years",
+            description_bn="শুরুর বছর",
+        )
+        self.event = Event.objects.create(
+            slug="eid-party",
+            title_en="Eid Celebration Programme",
+            title_bn="ঈদ অনুষ্ঠান",
+            start_at="2026-05-01T10:00:00Z",
+            location_en="Main hall",
+            location_bn="প্রধান হল",
+            description_en="Open to all",
+            description_bn="সবার জন্য",
+        )
+
+    def test_patching_only_the_fee_keeps_a_custom_grade_slug(self):
+        response = self.client.patch(
+            f"/api/staff/grades/{self.grade.pk}/", {"fee_amount": "1000"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["slug"], "kg")
+        self.grade.refresh_from_db()
+        self.assertEqual(self.grade.slug, "kg")
+
+    def test_patching_an_event_field_keeps_a_custom_slug(self):
+        response = self.client.patch(
+            f"/api/staff/events/{self.event.pk}/", {"is_published": False}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["slug"], "eid-party")
+
+    def test_blank_slug_still_regenerates_from_the_title(self):
+        response = self.client.patch(
+            f"/api/staff/grades/{self.grade.pk}/", {"slug": ""}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["slug"], "kindergarten")
+
+    def test_blank_fee_clears_it_instead_of_storing_zero(self):
+        self.client.patch(
+            f"/api/staff/grades/{self.grade.pk}/", {"fee_amount": "1500"}, format="json"
+        )
+        response = self.client.patch(
+            f"/api/staff/grades/{self.grade.pk}/", {"fee_amount": ""}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["fee_amount"], "")
+        self.assertFalse(
+            AdmissionFee.objects.filter(grade=self.grade, is_active=True).exists()
+        )
+
+
+class StaffCurriculumDocumentUploadTests(APITestCase):
+    """The model always had a `file` upload; only `file_url` was exposed, so a
+    syllabus had to be hosted elsewhere before it could be linked."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="igqs", password="secret", is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.grade = CurriculumGrade.objects.create(
+            slug="class-5",
+            name_en="Class 5",
+            name_bn="পঞ্চম শ্রেণি",
+            description_en="Upper primary",
+            description_bn="উচ্চ প্রাথমিক",
+        )
+
+    def test_uploading_a_document_file_and_clearing_it(self):
+        upload = SimpleUploadedFile(
+            "syllabus.pdf", b"%PDF-1.4\ntrailer<<>>\n%%EOF\n", content_type="application/pdf"
+        )
+        created = self.client.post(
+            "/api/staff/documents/",
+            {
+                "grade": self.grade.pk,
+                "title_en": "Syllabus",
+                "title_bn": "সিলেবাস",
+                "file": upload,
+                "order": 0,
+            },
+            format="multipart",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertTrue(created.data["file"])
+        self.assertTrue(created.data["download_url"].endswith(".pdf"))
+
+        document = CurriculumDocument.objects.get(pk=created.data["id"])
+        self.assertTrue(document.file)
+
+        cleared = self.client.patch(
+            f"/api/staff/documents/{document.pk}/", {"clear_file": True}, format="json"
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.content)
+        self.assertFalse(cleared.data["file"])
+        self.assertEqual(cleared.data["download_url"], "")
+        document.refresh_from_db()
+        self.assertFalse(document.file)
+
+    def test_a_pasted_link_still_works_when_no_file_is_uploaded(self):
+        created = self.client.post(
+            "/api/staff/documents/",
+            {
+                "grade": self.grade.pk,
+                "title_en": "Routine",
+                "title_bn": "রুটিন",
+                "file_url": "https://example.com/routine.pdf",
+                "order": 1,
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.data["download_url"], "https://example.com/routine.pdf")
