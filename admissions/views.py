@@ -1,3 +1,5 @@
+import re
+
 from django.db import IntegrityError, transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -17,8 +19,19 @@ from .serializers import (
 )
 
 
+_LEGACY_RECEIPT = re.compile(r"^IGQS-RC-0*(\d+)$", re.IGNORECASE)
+_LEGACY_APPLICATION = re.compile(r"^IGQS-\d{4}-0*(\d+)$", re.IGNORECASE)
+
+
 def normalize_receipt_id(value: str) -> str:
-    return (value or "").strip().upper().replace(" ", "")
+    text = (value or "").strip().upper().replace(" ", "")
+    for pattern in (_LEGACY_RECEIPT, _LEGACY_APPLICATION):
+        match = pattern.fullmatch(text)
+        if match:
+            return str(int(match.group(1)))
+    if text.isdigit():
+        return str(int(text))
+    return text
 
 
 def find_application_by_receipt(receipt_id: str):

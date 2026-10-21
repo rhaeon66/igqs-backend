@@ -185,39 +185,38 @@ class AdmissionApplication(models.Model):
 
     @classmethod
     def _next_ids(cls) -> tuple[str, str]:
-        year = timezone.localdate().year
-        prefix = f"IGQS-{year}-"
-        # select_for_update() locks matching rows for the life of this
-        # transaction so a concurrent submission can't read the same "last"
-        # row before this one commits its new application_id/receipt_id.
-        last = (
-            cls.objects.select_for_update()
-            .filter(application_id__startswith=prefix)
-            .order_by("-application_id")
-            .first()
-        )
-        next_number = 1
-        if last:
-            try:
-                next_number = int(last.application_id.split("-")[-1]) + 1
-            except ValueError:
-                next_number = cls.objects.filter(application_id__startswith=prefix).count() + 1
-        return f"{prefix}{next_number:05d}", cls._unique_receipt_id(next_number)
+        # select_for_update() locks the existing rows for this transaction so
+        # two submissions can't read the same highest number.
+        highest = 0
+        rows = cls.objects.select_for_update().values_list("application_id", "receipt_id")
+        for application_id, receipt_id in rows:
+            highest = max(highest, cls._number_in(application_id), cls._number_in(receipt_id))
+        number = highest + 1
+        while cls.objects.filter(application_id=str(number)).exists():
+            number += 1
+        return str(number), cls._unique_receipt_id(number)
+
+    @staticmethod
+    def _number_in(raw: str) -> int:
+        text = (raw or "").strip()
+        if text.isdigit():
+            return int(text)
+        tail = text.rsplit("-", 1)[-1]
+        if tail.isdigit():
+            return int(tail)
+        return 0
 
     @classmethod
     def _receipt_id_for(cls, application_id: str) -> str:
-        try:
-            number = int(application_id.rsplit("-", 1)[-1])
-        except ValueError:
-            number = cls.objects.count() + 1
+        number = cls._number_in(application_id) or cls.objects.count() + 1
         return cls._unique_receipt_id(number)
 
     @classmethod
     def _unique_receipt_id(cls, number: int) -> str:
-        candidate = f"IGQS-RC-{number:05d}"
+        candidate = str(number)
         while cls.objects.filter(receipt_id=candidate).exists():
             number += 1
-            candidate = f"IGQS-RC-{number:05d}"
+            candidate = str(number)
         return candidate
 
 

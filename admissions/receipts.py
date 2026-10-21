@@ -25,35 +25,43 @@ CREAM = HexColor("#f7f1e3")
 RULE = HexColor("#e4d5b3")
 
 _FONTS_READY = False
-# Fall back to ReportLab's built-in base fonts (always available, no system
-# dependency) if the Noto TrueType files aren't installed on this machine.
-# Bengali text will render as missing glyphs in that fallback, but receipt
-# generation — and therefore admission submission — won't crash.
+# Latin text can fall back to ReportLab's built-in fonts. Bengali cannot:
+# Helvetica has no Bengali glyphs, so a name drawn with it becomes black
+# boxes. Bornomala ships with the app so a server without Noto still prints
+# those names. See admissions/fonts/OFL.txt.
 LATIN = "Helvetica"
 LATIN_BOLD = "Helvetica-Bold"
 BENGALI = "Helvetica"
 
 NOTO_DIR = Path("/usr/share/fonts/truetype/noto")
+BUNDLED_BENGALI = Path(__file__).resolve().parent / "fonts" / "Bornomala-Regular.ttf"
+
+
+def _register_one(name: str, path: Path) -> bool:
+    try:
+        pdfmetrics.registerFont(TTFont(name, str(path)))
+    except Exception:
+        logger.warning("Could not register receipt font %s from %s", name, path)
+        return False
+    return True
 
 
 def _register_fonts() -> None:
     global _FONTS_READY, LATIN, LATIN_BOLD, BENGALI
     if _FONTS_READY:
         return
-    try:
-        pdfmetrics.registerFont(TTFont("IGQSSans", str(NOTO_DIR / "NotoSans-Regular.ttf")))
-        pdfmetrics.registerFont(TTFont("IGQSSans-Bold", str(NOTO_DIR / "NotoSans-Bold.ttf")))
-        pdfmetrics.registerFont(
-            TTFont("IGQSBengali", str(NOTO_DIR / "NotoSansBengali-Regular.ttf"))
-        )
-    except Exception:
-        logger.warning(
-            "Noto fonts not found at %s; receipts will use built-in PDF fonts "
-            "and Bengali text may not render correctly.",
-            NOTO_DIR,
-        )
+    if _register_one("IGQSSans", NOTO_DIR / "NotoSans-Regular.ttf") and _register_one(
+        "IGQSSans-Bold", NOTO_DIR / "NotoSans-Bold.ttf"
+    ):
+        LATIN, LATIN_BOLD = "IGQSSans", "IGQSSans-Bold"
+
+    bengali_path = BUNDLED_BENGALI if BUNDLED_BENGALI.is_file() else NOTO_DIR / "NotoSansBengali-Regular.ttf"
+    if _register_one("IGQSBengali", bengali_path):
+        BENGALI = "IGQSBengali"
     else:
-        LATIN, LATIN_BOLD, BENGALI = "IGQSSans", "IGQSSans-Bold", "IGQSBengali"
+        logger.warning(
+            "No Bengali font available for receipts; Bengali names will not render."
+        )
     _FONTS_READY = True
 
 

@@ -61,13 +61,12 @@ def make_application(**overrides):
 class ReceiptIdTests(TestCase):
     def test_application_and_receipt_ids_share_sequence(self):
         first = make_application(transaction_id="TXN-A")
-        year = timezone.localdate().year
-        self.assertEqual(first.application_id, f"IGQS-{year}-00001")
-        self.assertEqual(first.receipt_id, "IGQS-RC-00001")
+        self.assertEqual(first.application_id, "1")
+        self.assertEqual(first.receipt_id, "1")
 
         second = make_application(transaction_id="TXN-B")
-        self.assertEqual(second.application_id, f"IGQS-{year}-00002")
-        self.assertEqual(second.receipt_id, "IGQS-RC-00002")
+        self.assertEqual(second.application_id, "2")
+        self.assertEqual(second.receipt_id, "2")
 
 
 class ReceiptDocumentTests(TestCase):
@@ -77,6 +76,9 @@ class ReceiptDocumentTests(TestCase):
         self.assertTrue(pdf.startswith(b"%PDF"))
         self.assertGreater(len(pdf), 4000)
         self.assertIn(b"ReportLab", pdf)
+        # FontFile2 is the embedded TrueType program. Helvetica has none,
+        # so this is the Bengali face the receipt draws names with.
+        self.assertIn(b"/FontFile2", pdf)
 
     def test_issue_receipt_emails_pdf(self):
         application = make_application()
@@ -169,18 +171,17 @@ class AdmissionReceiptApiTests(APITestCase):
         payload = apply_payload()
         response = self.client.post("/api/admissions/apply/", payload, format="multipart")
         self.assertEqual(response.status_code, 201, response.content)
-        year = timezone.localdate().year
-        self.assertEqual(response.data["application_id"], f"IGQS-{year}-00001")
-        self.assertEqual(response.data["receipt_id"], "IGQS-RC-00001")
+        self.assertEqual(response.data["application_id"], "1")
+        self.assertEqual(response.data["receipt_id"], "1")
         self.assertTrue(response.data["receipt_email_sent"])
-        self.assertIn("/receipts/IGQS-RC-00001/pdf/", response.data["receipt_pdf_url"])
+        self.assertIn("/receipts/1/pdf/", response.data["receipt_pdf_url"])
 
         download = self.client.get(
             f"/api/admissions/applications/{response.data['application_id']}/receipt/"
         )
         self.assertEqual(download.status_code, 200)
         self.assertEqual(download["Content-Type"], "application/pdf")
-        self.assertIn("IGQS-RC-00001.pdf", download["Content-Disposition"])
+        self.assertIn("1.pdf", download["Content-Disposition"])
 
     def test_lookup_receipt_by_id(self):
         payload = apply_payload(transaction_id="TXNLOOKUP001")
@@ -188,8 +189,12 @@ class AdmissionReceiptApiTests(APITestCase):
         self.assertEqual(created.status_code, 201, created.content)
         receipt_id = created.data["receipt_id"]
 
-        missing = self.client.get("/api/admissions/receipts/IGQS-RC-99999/")
+        missing = self.client.get("/api/admissions/receipts/99999/")
         self.assertEqual(missing.status_code, 404)
+
+        legacy = self.client.get("/api/admissions/receipts/IGQS-RC-00001/")
+        self.assertEqual(legacy.status_code, 200)
+        self.assertEqual(legacy.data["receipt_id"], "1")
 
         found = self.client.get(f"/api/admissions/receipts/{receipt_id.lower()}/")
         self.assertEqual(found.status_code, 200)
