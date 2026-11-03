@@ -10,7 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .eligibility import admission_grades
-from .models import AdmissionApplication, AdmissionFee, PaymentMethod
+from .models import AdmissionApplication, AdmissionFee, ApplicationStatus, PaymentMethod
 from .phone import (
     PhoneError,
     clear_lookup_failures,
@@ -65,7 +65,15 @@ def find_application_by_query(value: str):
     return find_application_by_receipt(value)
 
 
-def receipt_pdf_response(application, request):
+def receipt_pdf_response(application, request, *, public=False):
+    # Guardians only get the PDF after staff approve the payment. Staff
+    # endpoints call this with public=False so they can still review pending
+    # applications.
+    if public and application.status != ApplicationStatus.APPROVED:
+        return Response(
+            {"detail": "Receipt is available after payment is approved."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     issue_receipt(application, send_email=False)
     application.refresh_from_db()
     if not application.receipt_pdf:
@@ -89,7 +97,11 @@ def application_payload(application, request):
         transaction["payment_screenshot"] = request.build_absolute_uri(screenshot)
     receipt_url = ""
     receipt_view_url = ""
-    if request and application.receipt_id:
+    if (
+        request
+        and application.receipt_id
+        and application.status == ApplicationStatus.APPROVED
+    ):
         receipt_url = request.build_absolute_uri(
             f"/api/admissions/receipts/{application.receipt_id}/pdf/"
         )
@@ -274,7 +286,7 @@ class AdmissionReceiptDownloadView(APIView):
         application = get_object_or_404(
             AdmissionApplication, application_id=application_id
         )
-        return receipt_pdf_response(application, request)
+        return receipt_pdf_response(application, request, public=True)
 
 
 class AdmissionLookupView(APIView):
@@ -320,4 +332,4 @@ class AdmissionReceiptPdfByIdView(APIView):
                 {"detail": "No receipt was found for that Receipt ID."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        return receipt_pdf_response(application, request)
+        return receipt_pdf_response(application, request, public=True)

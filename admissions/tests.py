@@ -188,8 +188,22 @@ class AdmissionReceiptApiTests(APITestCase):
         self.assertEqual(response.data["application_id"], "1")
         self.assertEqual(response.data["receipt_id"], "1")
         self.assertTrue(response.data["receipt_email_sent"])
-        self.assertIn("/receipts/1/pdf/", response.data["receipt_pdf_url"])
+        # Pending applications stay pending: no public receipt URL or PDF yet.
+        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(response.data["receipt_pdf_url"], "")
+        download = self.client.get(
+            f"/api/admissions/applications/{response.data['application_id']}/receipt/"
+        )
+        self.assertEqual(download.status_code, 403)
 
+        AdmissionApplication.objects.filter(
+            application_id=response.data["application_id"]
+        ).update(status=ApplicationStatus.APPROVED)
+        approved = self.client.get(
+            f"/api/admissions/applications/{response.data['application_id']}/"
+        )
+        self.assertEqual(approved.status_code, 200)
+        self.assertIn("/receipts/1/pdf/", approved.data["receipt_pdf_url"])
         download = self.client.get(
             f"/api/admissions/applications/{response.data['application_id']}/receipt/"
         )
@@ -209,6 +223,14 @@ class AdmissionReceiptApiTests(APITestCase):
         legacy = self.client.get("/api/admissions/receipts/IGQS-RC-00001/")
         self.assertEqual(legacy.status_code, 200)
         self.assertEqual(legacy.data["receipt_id"], "1")
+        self.assertEqual(legacy.data["receipt_pdf_url"], "")
+        self.assertEqual(
+            self.client.get("/api/admissions/receipts/1/pdf/").status_code, 403
+        )
+
+        AdmissionApplication.objects.filter(receipt_id=receipt_id).update(
+            status=ApplicationStatus.APPROVED
+        )
 
         found = self.client.get(f"/api/admissions/receipts/{receipt_id.lower()}/")
         self.assertEqual(found.status_code, 200)
@@ -231,7 +253,8 @@ class AdmissionReceiptApiTests(APITestCase):
         )
         self.assertEqual(created.status_code, 201, created.content)
         AdmissionApplication.objects.filter(application_id=created.data["application_id"]).update(
-            receipt_id="IGQS-RC-00042"
+            receipt_id="IGQS-RC-00042",
+            status=ApplicationStatus.APPROVED,
         )
 
         found = self.client.get("/api/admissions/receipts/IGQS-RC-00042/")
