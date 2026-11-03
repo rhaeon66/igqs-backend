@@ -274,7 +274,7 @@ class StaffReceiptSerializer(serializers.ModelSerializer):
         return self._required_text(value, "Enter the student's name.")
 
     def validate_student_name_bn(self, value):
-        return self._required_text(value, "Enter the student's name in Bengali.")
+        return self._required_text(value, "Enter the student's name in Bangla.")
 
     def validate_guardian_name(self, value):
         return self._required_text(value, "Enter the guardian's name.")

@@ -140,7 +140,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "bn"
 
 LANGUAGES = [
-    ("bn", "Bengali"),
+    ("bn", "Bangla"),
     ("en", "English"),
 ]
 

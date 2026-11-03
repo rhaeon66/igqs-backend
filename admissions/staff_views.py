@@ -338,7 +338,7 @@ class StaffApplicationExportView(StaffAuthMixin, APIView):
                 "Receipt ID",
                 "Status",
                 "Student name",
-                "Student name (Bengali)",
+                "Student name (Bangla)",
                 "Guardian name",
                 "Applying class",
                 "Mobile",
@@ -492,7 +492,7 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
         name_bn = (request.data.get("name_bn") or "").strip()
         if not name_en or not name_bn:
             return Response(
-                {"detail": "Enter the class name in English and Bengali."},
+                {"detail": "Enter the class name in English and Bangla."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
