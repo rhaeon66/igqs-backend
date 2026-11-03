@@ -1,4 +1,6 @@
+import tempfile
 from io import BytesIO
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -93,6 +95,23 @@ class ReceiptDocumentTests(TestCase):
         self.assertTrue(receipts.BUNDLED_LOGO.is_file())
         pdf = build_receipt_pdf(make_application())
         self.assertIn(b"/Subtype /Image", pdf)
+
+    def test_logo_reader_clears_black_jpg_backdrop(self):
+        # Site settings often store a JPG crest on a solid black square; that
+        # square must not print on the green receipt header.
+        from PIL import Image
+
+        raw = Image.new("RGB", (64, 64), (0, 0, 0))
+        for y in range(16, 48):
+            for x in range(16, 48):
+                raw.putpixel((x, y), (1, 33, 71))  # navy ring colour
+        path = Path(tempfile.gettempdir()) / "igqs-black-backdrop-logo.jpg"
+        raw.save(path, format="JPEG", quality=95)
+        reader = receipts._logo_reader(path)
+        png = reader._image
+        self.assertEqual(png.mode, "RGBA")
+        self.assertEqual(png.getpixel((0, 0))[3], 0)
+        self.assertEqual(png.getpixel((32, 32))[2], 71)
 
     def test_issue_receipt_emails_pdf(self):
         application = make_application()

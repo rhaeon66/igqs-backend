@@ -8,9 +8,11 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.utils import timezone
+from PIL import Image as PilImage
 from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont, shapeStr
 from reportlab.pdfgen import canvas
@@ -294,13 +296,38 @@ def _draw_mark(c: canvas.Canvas, x: float, y: float, size: float) -> None:
     c.drawCentredString(x + size / 2, y + size / 2 - 3, "IGQS")
 
 
+def _logo_reader(path: Path) -> ImageReader:
+    """Load a crest for PDF drawing with a real alpha channel.
+
+    Uploaded JPGs often ship with a solid black square behind the circle;
+    ReportLab would paint that square on the green header. Near-black pixels
+    are cleared (the navy ring keeps its blue channel, so it stays).
+    """
+    image = PilImage.open(path).convert("RGBA")
+    pixels = [
+        (0, 0, 0, 0) if (pixel[0] < 18 and pixel[1] < 18 and pixel[2] < 18) else pixel
+        for pixel in image.getdata()
+    ]
+    image.putdata(pixels)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return ImageReader(buffer)
+
+
 def _draw_logo(c, school, x, y, size) -> None:
     for logo in (school["logo_path"], BUNDLED_LOGO):
         if not logo or not Path(logo).is_file():
             continue
         try:
             c.drawImage(
-                str(logo), x, y, width=size, height=size, preserveAspectRatio=True, mask="auto"
+                _logo_reader(Path(logo)),
+                x,
+                y,
+                width=size,
+                height=size,
+                preserveAspectRatio=True,
+                mask="auto",
             )
         except Exception:
             # e.g. an uploaded SVG/WebP ReportLab can't read: try the next one.
