@@ -219,31 +219,3 @@ class AdmissionApplication(models.Model):
             candidate = str(number)
         return candidate
 
-
-class PhoneOtp(models.Model):
-    phone = models.CharField(max_length=20, db_index=True)
-    code_hash = models.CharField(max_length=128)
-    expires_at = models.DateTimeField()
-    attempts = models.PositiveSmallIntegerField(default=0)
-    last_sent_at = models.DateTimeField()
-    consumed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self) -> str:
-        return f"OTP {self.phone}"
-
-
-class GuardianSession(models.Model):
-    phone = models.CharField(max_length=20, db_index=True)
-    token_hash = models.CharField(max_length=64, unique=True)
-    expires_at = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self) -> str:
-        return f"Session {self.phone}"

@@ -3,6 +3,7 @@ from datetime import datetime
 from io import StringIO
 
 from django.contrib.auth import authenticate
+from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, IntegerField, Max, Q, Sum, When
 from django.utils.text import slugify
 from django.http import HttpResponse
@@ -20,7 +21,8 @@ from content.models import CurriculumGrade
 from .eligibility import admission_grades, parse_fee_amount, set_class_fee
 from .models import AdmissionApplication, AdmissionFee, ApplicationStatus
 from .permissions import IsStaffUser
-from .receipts import issue_receipt, refresh_application_after_review
+from .receipts import generate_receipt_pdf, issue_receipt, refresh_application_after_review
+from .serializers import StaffReceiptSerializer
 from .views import application_payload, receipt_pdf_response
 
 
@@ -543,9 +545,32 @@ class StaffClassFeeView(StaffAuthMixin, APIView):
         return Response({"fees": _class_fee_rows()})
 
 
-class StaffReceiptDownloadView(StaffAuthMixin, APIView):
+class StaffReceiptView(StaffAuthMixin, APIView):
+    """GET serves the receipt PDF (``?inline=1`` to view in the browser);
+    PATCH corrects the details printed on it and rebuilds the PDF."""
+
     def get(self, request, application_id):
         application = get_object_or_404(
             AdmissionApplication, application_id=application_id
         )
         return receipt_pdf_response(application, request)
+
+    def patch(self, request, application_id):
+        application = get_object_or_404(
+            AdmissionApplication, application_id=application_id
+        )
+        serializer = StaffReceiptSerializer(application, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except IntegrityError:
+            return Response(
+                {"transaction_id": ["This transaction ID is already linked to another application."]},
+                status=status.HTTP_409_CONFLICT,
+            )
+        # The stored PDF is a snapshot; rebuild it so downloads, the public
+        # receipt page and future emails all show the corrected details.
+        generate_receipt_pdf(application, force=True)
+        application.refresh_from_db()
+        return Response(staff_detail_payload(application, request))

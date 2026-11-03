@@ -1,9 +1,9 @@
-from datetime import timedelta
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
@@ -16,8 +16,8 @@ from admissions.models import (
     ApplicationStatus,
     PaymentMethod,
     PaymentMethodCode,
-    PhoneOtp,
 )
+from admissions import receipts
 from admissions.receipts import build_receipt_pdf, issue_receipt
 from content.models import CurriculumGrade
 
@@ -79,6 +79,20 @@ class ReceiptDocumentTests(TestCase):
         # FontFile2 is the embedded TrueType program. Helvetica has none,
         # so this is the Bengali face the receipt draws names with.
         self.assertIn(b"/FontFile2", pdf)
+
+    def test_bengali_is_shaped_into_conjuncts(self):
+        # Unshaped, "ক্ষ" is three separate glyphs (ক, hasanta, ষ); shaped, it
+        # is one conjunct. Without shaping, names print broken on receipts.
+        receipts._register_fonts()
+        drawable, width = receipts._prepare("ক্ষ", receipts.BENGALI, 10)
+        self.assertTrue(hasattr(drawable, "__shapeData__"), "uharfbuzz shaping is not active")
+        self.assertLess(len(drawable.__shapeData__), 3)
+        self.assertGreater(width, 0)
+
+    def test_pdf_has_the_school_logo_without_an_uploaded_one(self):
+        self.assertTrue(receipts.BUNDLED_LOGO.is_file())
+        pdf = build_receipt_pdf(make_application())
+        self.assertIn(b"/Subtype /Image", pdf)
 
     def test_issue_receipt_emails_pdf(self):
         application = make_application()
@@ -211,6 +225,23 @@ class AdmissionReceiptApiTests(APITestCase):
         self.assertEqual(inline.status_code, 200)
         self.assertIn("inline", inline["Content-Disposition"])
 
+    def test_receipt_stored_in_the_old_id_format_still_opens(self):
+        created = self.client.post(
+            "/api/admissions/apply/", apply_payload(transaction_id="TXNOLDID001"), format="multipart"
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        AdmissionApplication.objects.filter(application_id=created.data["application_id"]).update(
+            receipt_id="IGQS-RC-00042"
+        )
+
+        found = self.client.get("/api/admissions/receipts/IGQS-RC-00042/")
+        self.assertEqual(found.status_code, 200)
+        self.assertEqual(found.data["receipt_id"], "IGQS-RC-00042")
+
+        pdf = self.client.get("/api/admissions/receipts/IGQS-RC-00042/pdf/")
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+
 
 class StaffAdmissionTests(APITestCase):
     def setUp(self):
@@ -223,6 +254,73 @@ class StaffAdmissionTests(APITestCase):
 
     def auth(self):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def test_staff_can_view_and_edit_a_receipt(self):
+        url = f"/api/admissions/staff/applications/{self.app.application_id}/receipt/"
+
+        # Staff only.
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.assertEqual(self.client.patch(url, {"student_name": "X"}, format="json").status_code, 401)
+
+        self.auth()
+        viewed = self.client.get(f"{url}?inline=1")
+        self.assertEqual(viewed.status_code, 200)
+        self.assertEqual(viewed["Content-Type"], "application/pdf")
+        self.assertTrue(viewed["Content-Disposition"].startswith("inline"))
+        old_pdf = AdmissionApplication.objects.get(pk=self.app.pk).receipt_pdf.name
+
+        edited = self.client.patch(
+            url,
+            {
+                "student_name": "  Ayesha Rahman ",
+                "mobile": "+8801811000333",
+                "payment_amount": "9000",
+                "transaction_id": "TXNFIXED01",
+            },
+            format="json",
+        )
+        self.assertEqual(edited.status_code, 200, edited.content)
+        self.assertEqual(edited.data["student_name"], "Ayesha Rahman")
+        self.assertEqual(edited.data["mobile"], "01811000333")
+        # Staff may record an amount that differs from the class fee.
+        self.assertEqual(edited.data["payment_amount"], "9000.00")
+        self.assertEqual(edited.data["transaction_id"], "TXNFIXED01")
+
+        app = AdmissionApplication.objects.get(pk=self.app.pk)
+        self.assertEqual(app.student_name, "Ayesha Rahman")
+        # Untouched fields and identifiers survive a partial edit.
+        self.assertEqual(app.guardian_name, "Karim Uddin")
+        self.assertEqual(app.receipt_id, self.app.receipt_id)
+        # The stored PDF was rebuilt.
+        self.assertTrue(app.receipt_pdf)
+        self.assertNotEqual(app.receipt_pdf.name, old_pdf)
+
+    def test_receipt_edit_rejects_bad_values(self):
+        self.auth()
+        make_application(transaction_id="TXNTAKEN01")
+        url = f"/api/admissions/staff/applications/{self.app.application_id}/receipt/"
+        bad = self.client.patch(
+            url,
+            {
+                "student_name": "  ",
+                "mobile": "12345",
+                "payment_amount": "0",
+                "payment_method": "carrier-pigeon",
+                "transaction_id": "txntaken01",
+            },
+            format="json",
+        )
+        self.assertEqual(bad.status_code, 400)
+        for field in ("student_name", "mobile", "payment_amount", "payment_method", "transaction_id"):
+            self.assertIn(field, bad.data)
+        # Identifiers and status are not editable through this endpoint.
+        ignored = self.client.patch(
+            url, {"receipt_id": "999", "status": "approved"}, format="json"
+        )
+        self.assertEqual(ignored.status_code, 200)
+        app = AdmissionApplication.objects.get(pk=self.app.pk)
+        self.assertEqual(app.receipt_id, self.app.receipt_id)
+        self.assertEqual(app.status, "pending")
 
     def test_class_fees_can_be_set_per_class(self):
         self.auth()
@@ -427,9 +525,10 @@ class StaffAdmissionTests(APITestCase):
 
 
 @override_settings(DEBUG=True)
-class AdmissionOtpAndIntegrityTests(APITestCase):
+class AdmissionIntegrityTests(APITestCase):
     def setUp(self):
         seed_admission_catalog()
+        cache.clear()
 
     def test_classes_exclude_hifz(self):
         response = self.client.get("/api/admissions/classes/?lang=en")
@@ -437,31 +536,6 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         slugs = [row["slug"] for row in response.data]
         self.assertIn("playgroup", slugs)
         self.assertNotIn("hifz", slugs)
-
-    def test_otp_send_verify_and_errors(self):
-        sent = self.client.post("/api/admissions/otp/send/", {"phone": "01711000111"}, format="json")
-        self.assertEqual(sent.status_code, 200)
-        self.assertEqual(sent.data["phone"], "01711000111")
-        self.assertTrue(sent.data["debug_otp"])
-
-        wrong = self.client.post(
-            "/api/admissions/otp/verify/",
-            {"phone": "01711000111", "otp": "000000"},
-            format="json",
-        )
-        self.assertEqual(wrong.status_code, 400)
-        self.assertEqual(wrong.data["code"], "otp_incorrect")
-
-        otp = PhoneOtp.objects.get(pk=sent.data["otp_id"])
-        otp.expires_at = timezone.now() - timedelta(minutes=1)
-        otp.save(update_fields=["expires_at"])
-        expired = self.client.post(
-            "/api/admissions/otp/verify/",
-            {"phone": "01711000111", "otp": sent.data["debug_otp"]},
-            format="json",
-        )
-        self.assertEqual(expired.status_code, 400)
-        self.assertEqual(expired.data["code"], "otp_expired")
 
     def test_apply_stores_submitted_mobile(self):
         created = self.client.post(
@@ -503,44 +577,74 @@ class AdmissionOtpAndIntegrityTests(APITestCase):
         self.assertEqual(mismatch.status_code, 400)
         self.assertIn("payment_amount", mismatch.data)
 
-    def test_my_payments_require_a_verified_otp_session(self):
+    def test_my_payments_require_mobile_and_date_of_birth(self):
         created = self.client.post(
             "/api/admissions/apply/",
             apply_payload(mobile="01711000111", payer_mobile="01711000111"),
             format="multipart",
         )
         self.assertEqual(created.status_code, 201, created.content)
+        url = "/api/admissions/me/applications/"
 
-        missing = self.client.get("/api/admissions/me/applications/")
-        self.assertEqual(missing.status_code, 400)
-
-        unverified = self.client.get("/api/admissions/me/applications/?phone=01711000111")
-        self.assertEqual(unverified.status_code, 401)
-        self.assertEqual(unverified.data["code"], "otp_required")
-
-        sent = self.client.post("/api/admissions/otp/send/", {"phone": "01711000111"}, format="json")
-        verified = self.client.post(
-            "/api/admissions/otp/verify/",
-            {"phone": "01711000111", "otp": sent.data["debug_otp"]},
-            format="json",
+        # The old OTP endpoints are gone.
+        self.assertEqual(
+            self.client.post("/api/admissions/otp/send/", {"phone": "01711000111"}).status_code,
+            404,
         )
-        self.assertEqual(verified.status_code, 200)
-        token = verified.data["token"]
 
-        mine = self.client.get(
-            "/api/admissions/me/applications/?phone=01711000111",
-            HTTP_AUTHORIZATION=f"Bearer {token}",
+        # Phone alone is no longer accepted, in the body or the query string.
+        self.assertEqual(self.client.post(url, {"phone": "01711000111"}, format="json").status_code, 400)
+        self.assertEqual(self.client.get(f"{url}?phone=01711000111").status_code, 405)
+
+        bad_dob = self.client.post(
+            url, {"phone": "01711000111", "date_of_birth": "12/04/2018"}, format="json"
+        )
+        self.assertEqual(bad_dob.status_code, 400)
+        self.assertEqual(bad_dob.data["code"], "invalid_dob")
+
+        wrong = self.client.post(
+            url, {"phone": "01711000111", "date_of_birth": "2018-04-13"}, format="json"
+        )
+        unknown = self.client.post(
+            url, {"phone": "01811000111", "date_of_birth": "2018-04-12"}, format="json"
+        )
+        # A wrong DOB and an unknown number look the same from outside.
+        self.assertEqual(wrong.status_code, 404)
+        self.assertEqual(unknown.status_code, 404)
+        self.assertEqual(wrong.data, unknown.data)
+
+        mine = self.client.post(
+            url, {"phone": "+8801711000111", "date_of_birth": "2018-04-12"}, format="json"
         )
         self.assertEqual(mine.status_code, 200)
         self.assertEqual(mine.data["count"], 1)
         self.assertEqual(mine.data["results"][0]["application_id"], created.data["application_id"])
 
-        # The verified session for 01711000111 must not unlock another number.
-        other = self.client.get(
-            "/api/admissions/me/applications/?phone=01811000111",
-            HTTP_AUTHORIZATION=f"Bearer {token}",
+    def test_my_payments_lock_a_number_after_repeated_wrong_dates(self):
+        self.client.post(
+            "/api/admissions/apply/",
+            apply_payload(mobile="01711000222", payer_mobile="01711000222", transaction_id="TXNLOCK"),
+            format="multipart",
         )
-        self.assertEqual(other.status_code, 401)
+        url = "/api/admissions/me/applications/"
+        for day in range(1, 6):
+            miss = self.client.post(
+                url, {"phone": "01711000222", "date_of_birth": f"2017-01-0{day}"}, format="json"
+            )
+            self.assertEqual(miss.status_code, 404)
+
+        # Even the correct DOB is refused once the number is locked.
+        locked = self.client.post(
+            url, {"phone": "01711000222", "date_of_birth": "2018-04-12"}, format="json"
+        )
+        self.assertEqual(locked.status_code, 429)
+        self.assertEqual(locked.data["code"], "lookup_locked")
+
+        cache.clear()
+        unlocked = self.client.post(
+            url, {"phone": "01711000222", "date_of_birth": "2018-04-12"}, format="json"
+        )
+        self.assertEqual(unlocked.status_code, 200)
 
     @override_settings(STAFF_NOTIFICATION_EMAIL="")
     def test_staff_notification_skipped_without_env(self):

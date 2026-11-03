@@ -10,7 +10,7 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.ttfonts import TTFont, shapeStr
 from reportlab.pdfgen import canvas
 
 from content.models import SiteSettings
@@ -35,6 +35,8 @@ BENGALI = "Helvetica"
 
 NOTO_DIR = Path("/usr/share/fonts/truetype/noto")
 BUNDLED_BENGALI = Path(__file__).resolve().parent / "fonts" / "Bornomala-Regular.ttf"
+# Used when no logo has been uploaded in Site settings (same crest as the website).
+BUNDLED_LOGO = Path(__file__).resolve().parent / "assets" / "igqs-logo.png"
 
 
 def _register_one(name: str, path: Path) -> bool:
@@ -62,6 +64,11 @@ def _register_fonts() -> None:
         logger.warning(
             "No Bengali font available for receipts; Bengali names will not render."
         )
+    if BENGALI != "Helvetica" and not pdfmetrics.getFont(BENGALI).shapable:
+        logger.warning(
+            "uharfbuzz is not installed; Bengali on receipts will print with "
+            "broken conjuncts and vowel signs. pip install uharfbuzz."
+        )
     _FONTS_READY = True
 
 
@@ -73,6 +80,30 @@ def _font_for(text: str, bold: bool = False) -> str:
     if _has_bengali(text):
         return BENGALI
     return LATIN_BOLD if bold else LATIN
+
+
+def _prepare(text: str, font: str, size: float):
+    """Returns (drawable text, width).
+
+    Bengali has to be shaped: vowel signs reorder (ি is typed after the
+    consonant but drawn before it) and consonants join into conjuncts (ক্ষ).
+    Drawn code point by code point, আদর্শ prints as "আদরশ". ReportLab only
+    shapes via HarfBuzz (uharfbuzz), and its drawString can't do it on its
+    own here, so the text is shaped up front and drawn as glyphs.
+    """
+    if _has_bengali(text) and pdfmetrics.getFont(font).shapable:
+        shaped = shapeStr(text, font, size, force=True)
+        data = getattr(shaped, "__shapeData__", None)
+        if data:
+            return shaped, sum(glyph.x_advance for glyph in data) * size / 1000
+    return text, pdfmetrics.stringWidth(text, font, size)
+
+
+def _draw_text(c, x: float, y: float, text: str, font: str, size: float) -> float:
+    drawable, width = _prepare(text, font, size)
+    c.setFont(font, size)
+    c.drawString(x, y, drawable)
+    return width
 
 
 def school_info() -> dict:
@@ -129,7 +160,7 @@ def _draw_wrapped(c, text, x, y, max_width, font, size, color=INK, leading=None)
     current: list[str] = []
     current_width = 0.0
     for word in words:
-        word_width = pdfmetrics.stringWidth(word, _font_for(word, bold), size)
+        word_width = _prepare(word, _font_for(word, bold), size)[1]
         extra = (space_width if current else 0) + word_width
         if current and current_width + extra > max_width:
             lines.append(current)
@@ -147,10 +178,7 @@ def _draw_wrapped(c, text, x, y, max_width, font, size, color=INK, leading=None)
         for j, word in enumerate(line_words):
             if j > 0:
                 cursor_x += space_width
-            word_font = _font_for(word, bold)
-            c.setFont(word_font, size)
-            c.drawString(cursor_x, line_y, word)
-            cursor_x += pdfmetrics.stringWidth(word, word_font, size)
+            cursor_x += _draw_text(c, cursor_x, line_y, word, _font_for(word, bold), size)
     return y - (len(lines) - 1) * leading
 
 
@@ -171,17 +199,27 @@ def build_receipt_pdf(application) -> bytes:
     mark_size = 22 * mm
     mark_x = margin
     mark_y = height - 40 * mm
-    if school["logo_path"] and Path(school["logo_path"]).exists():
-        c.drawImage(
-            school["logo_path"],
-            mark_x,
-            mark_y,
-            width=mark_size,
-            height=mark_size,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
-    else:
+    drawn = False
+    for logo in (school["logo_path"], BUNDLED_LOGO):
+        if not logo or not Path(logo).is_file():
+            continue
+        try:
+            c.drawImage(
+                str(logo),
+                mark_x,
+                mark_y,
+                width=mark_size,
+                height=mark_size,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+        except Exception:
+            # e.g. an uploaded SVG/WebP ReportLab can't read: try the next one.
+            logger.warning("Could not draw receipt logo %s", logo)
+            continue
+        drawn = True
+        break
+    if not drawn:
         _draw_mark(c, mark_x, mark_y, mark_size)
 
     text_x = mark_x + mark_size + 8 * mm
@@ -192,8 +230,7 @@ def build_receipt_pdf(application) -> bytes:
     c.setFont(LATIN_BOLD, 16)
     c.drawString(text_x, height - 26 * mm, school["name"])
     if school["name_bn"]:
-        c.setFont(BENGALI, 10)
-        c.drawString(text_x, height - 32 * mm, school["name_bn"])
+        _draw_text(c, text_x, height - 32 * mm, school["name_bn"], BENGALI, 10)
     c.setFont(LATIN, 10)
     c.setFillColor(GOLD)
     c.drawString(text_x, height - 40 * mm, "Admission Application Receipt")

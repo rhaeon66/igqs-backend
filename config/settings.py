@@ -199,8 +199,6 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         # Public applicant/receipt lookup by ID — slows down ID enumeration.
         "admission_lookup": "30/min",
-        # OTP send/verify — per-IP backstop in addition to the per-phone limits.
-        "admission_otp": "20/min",
     },
 }
 
@@ -214,7 +212,6 @@ DEFAULT_FROM_EMAIL = os.getenv(
 )
 
 STAFF_NOTIFICATION_EMAIL = os.getenv("STAFF_NOTIFICATION_EMAIL", "").strip()
-SMS_PROVIDER = os.getenv("SMS_PROVIDER", "").strip()
 
 EMAIL_BACKEND = os.getenv(
     "DJANGO_EMAIL_BACKEND",

@@ -3,6 +3,7 @@ import re
 from django.db import IntegrityError, transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -10,7 +11,13 @@ from rest_framework.views import APIView
 
 from .eligibility import admission_grades
 from .models import AdmissionApplication, AdmissionFee, PaymentMethod
-from .phone import PhoneError, get_guardian_session, normalize_bd_phone, send_otp, verify_otp
+from .phone import (
+    PhoneError,
+    clear_lookup_failures,
+    ensure_lookup_allowed,
+    normalize_bd_phone,
+    record_lookup_failure,
+)
 from .receipts import issue_receipt, notify_staff_new_application
 from .serializers import (
     AdmissionApplicationSerializer,
@@ -34,19 +41,28 @@ def normalize_receipt_id(value: str) -> str:
     return text
 
 
+def _candidate_ids(value: str) -> list[str]:
+    # Rows created before IDs became numeric still store "IGQS-RC-00001",
+    # so try the value as given before its normalized (numeric) form.
+    raw = (value or "").strip().replace(" ", "")
+    normalized = normalize_receipt_id(value)
+    return [v for v in dict.fromkeys([raw, normalized]) if v]
+
+
 def find_application_by_receipt(receipt_id: str):
-    rid = normalize_receipt_id(receipt_id)
-    if not rid:
-        return None
-    return AdmissionApplication.objects.filter(receipt_id__iexact=rid).first()
+    for rid in _candidate_ids(receipt_id):
+        application = AdmissionApplication.objects.filter(receipt_id__iexact=rid).first()
+        if application:
+            return application
+    return None
 
 
 def find_application_by_query(value: str):
-    query = normalize_receipt_id(value)
-    if not query:
-        return None
-    application = AdmissionApplication.objects.filter(application_id__iexact=query).first()
-    return application or find_application_by_receipt(query)
+    for query in _candidate_ids(value):
+        application = AdmissionApplication.objects.filter(application_id__iexact=query).first()
+        if application:
+            return application
+    return find_application_by_receipt(value)
 
 
 def receipt_pdf_response(application, request):
@@ -138,41 +154,6 @@ def phone_error_response(exc: PhoneError):
     )
 
 
-class SendOtpView(APIView):
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "admission_otp"
-
-    def post(self, request):
-        try:
-            return Response(send_otp(request.data.get("phone") or ""))
-        except PhoneError as exc:
-            return phone_error_response(exc)
-
-
-class VerifyOtpView(APIView):
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "admission_otp"
-
-    def post(self, request):
-        try:
-            return Response(
-                verify_otp(request.data.get("phone") or "", request.data.get("otp") or "")
-            )
-        except PhoneError as exc:
-            return phone_error_response(exc)
-
-
-class GuardianSessionView(APIView):
-    def get(self, request):
-        session = get_guardian_session(request)
-        if not session:
-            return Response(
-                {"detail": "Phone verification is required."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        return Response({"ok": True, "phone": session.phone})
-
-
 class AdmissionApplicationCreateView(generics.CreateAPIView):
     serializer_class = AdmissionApplicationSerializer
 
@@ -213,30 +194,55 @@ class AdmissionApplicationCreateView(generics.CreateAPIView):
 
 
 class MyApplicationsView(APIView):
+    """Guardian payment history, unlocked by mobile + student's date of birth.
+
+    POST rather than GET so the date of birth never lands in URLs, server
+    logs or browser history. A wrong DOB and an unknown number get the same
+    404, so the endpoint does not reveal which numbers have applied.
+    """
+
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "admission_lookup"
 
-    def get(self, request):
-        raw = (request.query_params.get("phone") or "").strip()
-        if not raw:
+    def post(self, request):
+        raw_phone = str(request.data.get("phone") or "").strip()
+        raw_dob = str(request.data.get("date_of_birth") or "").strip()
+        if not raw_phone or not raw_dob:
             return Response(
-                {"detail": "Enter a mobile number."},
+                {"detail": "Enter the mobile number and the student's date of birth."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            phone = normalize_bd_phone(raw)
+            phone = normalize_bd_phone(raw_phone)
         except PhoneError as exc:
             return phone_error_response(exc)
-        session = get_guardian_session(request)
-        if not session or session.phone != phone:
+        try:
+            date_of_birth = parse_date(raw_dob)
+        except ValueError:
+            date_of_birth = None
+        if not date_of_birth:
+            return Response(
+                {"detail": "Enter a valid date of birth.", "code": "invalid_dob"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            ensure_lookup_allowed(phone)
+        except PhoneError as exc:
+            return phone_error_response(exc)
+
+        applications = AdmissionApplication.objects.filter(
+            mobile=phone, date_of_birth=date_of_birth
+        )
+        if not applications.exists():
+            record_lookup_failure(phone)
             return Response(
                 {
-                    "detail": "Verify this mobile number with an OTP first.",
-                    "code": "otp_required",
+                    "detail": "No applications match that mobile number and date of birth.",
+                    "code": "no_match",
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_404_NOT_FOUND,
             )
-        applications = AdmissionApplication.objects.filter(mobile=phone)
+        clear_lookup_failures(phone)
         return Response(
             {
                 "phone": phone,
