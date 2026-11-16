@@ -82,6 +82,29 @@ class StaffContentTests(APITestCase):
         public_en = self.client.get("/api/home/?lang=en")
         self.assertEqual(public_en.data["home"]["hero_title"], "New hero title")
 
+    def test_home_story_fields_round_trip(self):
+        self.auth()
+        update = self.client.patch(
+            "/api/staff/home/",
+            {
+                "goals_en": "Goals",
+                "goals_bn": "লক্ষ্য",
+                "beacon_en": "Beacon",
+                "beacon_bn": "আলো",
+                "chairman_name_en": "Chair",
+                "chairman_name_bn": "সভাপতি",
+                "chairman_message_en": "A note",
+                "chairman_message_bn": "একটি বাণী",
+            },
+            format="json",
+        )
+        self.assertEqual(update.status_code, 200)
+        public = self.client.get("/api/home/?lang=en")
+        self.assertEqual(public.data["home"]["goals"], "Goals")
+        self.assertEqual(public.data["home"]["beacon"], "Beacon")
+        self.assertEqual(public.data["home"]["chairman_name"], "Chair")
+        self.assertEqual(public.data["home"]["chairman_message"], "A note")
+
     def test_home_keeps_image_url_and_upload(self):
         self.auth()
         buffer = BytesIO()

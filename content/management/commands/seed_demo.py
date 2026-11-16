@@ -126,6 +126,17 @@ class Command(BaseCommand):
                 "principal_message_en": "Our aim is not only academic success, but the formation of hearts that love Allah, respect parents, and serve the community. At IGQS, every lesson begins with sincerity.",
                 "principal_message_bn": "আমাদের লক্ষ্য শুধু একাডেমিক সাফল্য নয়, বরং এমন হৃদয় গড়া যা আল্লাহকে ভালোবাসে, পিতা-মাতাকে সম্মান করে এবং সমাজের সেবা করে। আইজিকিউএস-এ প্রতিটি পাঠ শুরু হয় ইখলাস দিয়ে।",
                 "principal_photo_url": IMG["principal"],
+                "chairman_name_en": "Mr. Tariq Islam",
+                "chairman_name_bn": "জনাব তারিক ইসলাম",
+                "chairman_title_en": "Chairman, Managing Committee",
+                "chairman_title_bn": "সভাপতি, পরিচালনা পরিষদ",
+                "chairman_message_en": "IGQS exists so a child can grow in knowledge and character together. The committee's duty is to keep that trust: sound governance, a safe campus, and a school that stays true to the Qur'an.",
+                "chairman_message_bn": "আইজিকিউএস আছে যাতে একটি শিশু জ্ঞান ও চরিত্রে একসাথে বেড়ে ওঠে। পরিষদের দায়িত্ব সেই আমানত রক্ষা করা: সুষ্ঠু পরিচালনা, নিরাপদ ক্যাম্পাস, এবং কুরআনের প্রতি অবিচল একটি বিদ্যালয়।",
+                "chairman_photo_url": IMG["leader3"],
+                "goals_en": "Ideal Global Qur'anic School was founded so every child can grow in body, mind, intellect, and spirit. The aim is to draw out the talent already in them and help them become Islamic scholars, doctors, engineers, lawyers, scientists, educators, and citizens devoted to the country and the nation — successful in this life and the next, insha'Allah.",
+                "goals_bn": "আদর্শ গ্লোবাল কুরআনিক স্কুল প্রতিষ্ঠিত হয়েছে যাতে প্রতিটি শিশু শারীরিক, মানসিক, বুদ্ধিবৃত্তিক ও আধ্যাত্মিকভাবে বেড়ে ওঠে। লক্ষ্য হলো তাদের ভেতরের প্রতিভা বিকশিত করে ইসলামি স্কলার, চিকিৎসক, প্রকৌশলী, আইনজীবী, বিজ্ঞানী, শিক্ষাবিদ এবং দেশ ও জাতির প্রতি নিবেদিত নাগরিক হিসেবে গড়ে তোলা — ইহকাল ও পরকালে সফলতার জন্য, ইনশাআল্লাহ।",
+                "beacon_en": "IGQS is a beacon of hope: a modern, distinctive school where Bangla, Arabic, and English are taught together. Islamic learning sits beside science-based knowledge, so a child can build a life on both. A student who is struggling is helped to become capable. A student who is already capable is helped to go further.",
+                "beacon_bn": "আইজিকিউএস আশার আলো: একটি আধুনিক ও ব্যতিক্রমী বিদ্যালয়, যেখানে বাংলা, আরবি ও ইংরেজি একসাথে পড়ানো হয়। ইসলামি শিক্ষার পাশে বিজ্ঞানভিত্তিক জ্ঞান থাকে, যাতে একটি শিশু দুইয়ের ওপরই জীবন গড়তে পারে। যে শিক্ষার্থী পিছিয়ে আছে, তাকে সক্ষম করে তোলা হয়। যে ইতিমধ্যে সক্ষম, তাকে আরও এগিয়ে নেওয়া হয়।",
             },
         )
 

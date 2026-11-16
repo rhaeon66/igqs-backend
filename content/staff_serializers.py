@@ -166,9 +166,10 @@ class StaffSiteSettingsSerializer(ClearUploadedImagesMixin, serializers.ModelSer
 
 
 class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
-    uploaded_image_fields = ("hero_image", "principal_photo")
+    uploaded_image_fields = ("hero_image", "principal_photo", "chairman_photo")
     clear_hero_image = serializers.BooleanField(required=False, write_only=True)
     clear_principal_photo = serializers.BooleanField(required=False, write_only=True)
+    clear_chairman_photo = serializers.BooleanField(required=False, write_only=True)
 
     class Meta:
         model = HomeContent
@@ -194,6 +195,31 @@ class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSeri
             "principal_photo",
             "clear_principal_photo",
             "principal_photo_url",
+            "chairman_name_en",
+            "chairman_name_bn",
+            "chairman_title_en",
+            "chairman_title_bn",
+            "chairman_message_en",
+            "chairman_message_bn",
+            "chairman_photo",
+            "clear_chairman_photo",
+            "chairman_photo_url",
+            "goals_en",
+            "goals_bn",
+            "beacon_en",
+            "beacon_bn",
+            "dreams_en",
+            "dreams_bn",
+            "child_gain_en",
+            "child_gain_bn",
+            "holistic_en",
+            "holistic_bn",
+            "admission_procedures_en",
+            "admission_procedures_bn",
+            "tuition_en",
+            "tuition_bn",
+            "uniform_en",
+            "uniform_bn",
         ]
 
 

@@ -71,6 +71,30 @@ class HomeContent(BilingualMixin, models.Model):
     principal_message_bn = models.TextField()
     principal_photo = models.ImageField(upload_to="home/", blank=True)
     principal_photo_url = models.URLField(blank=True)
+    chairman_name_en = models.CharField(max_length=120, blank=True)
+    chairman_name_bn = models.CharField(max_length=120, blank=True)
+    chairman_title_en = models.CharField(max_length=120, blank=True)
+    chairman_title_bn = models.CharField(max_length=120, blank=True)
+    chairman_message_en = models.TextField(blank=True)
+    chairman_message_bn = models.TextField(blank=True)
+    chairman_photo = models.ImageField(upload_to="home/", blank=True)
+    chairman_photo_url = models.URLField(blank=True)
+    goals_en = models.TextField(blank=True)
+    goals_bn = models.TextField(blank=True)
+    beacon_en = models.TextField(blank=True)
+    beacon_bn = models.TextField(blank=True)
+    dreams_en = models.TextField(blank=True)
+    dreams_bn = models.TextField(blank=True)
+    child_gain_en = models.TextField(blank=True)
+    child_gain_bn = models.TextField(blank=True)
+    holistic_en = models.TextField(blank=True)
+    holistic_bn = models.TextField(blank=True)
+    admission_procedures_en = models.TextField(blank=True)
+    admission_procedures_bn = models.TextField(blank=True)
+    tuition_en = models.TextField(blank=True)
+    tuition_bn = models.TextField(blank=True)
+    uniform_en = models.TextField(blank=True)
+    uniform_bn = models.TextField(blank=True)
 
     class Meta:
         verbose_name = "Home content"
@@ -90,6 +114,12 @@ class HomeContent(BilingualMixin, models.Model):
         if self.principal_photo:
             return self.principal_photo.url
         return self.principal_photo_url
+
+    @property
+    def chairman_photo_src(self) -> str:
+        if self.chairman_photo:
+            return self.chairman_photo.url
+        return self.chairman_photo_url
 
 
 class HeroSlide(models.Model):

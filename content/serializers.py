@@ -98,6 +98,18 @@ class HomeContentSerializer(serializers.ModelSerializer):
     principal_title = serializers.SerializerMethodField()
     principal_message = serializers.SerializerMethodField()
     principal_photo_url = serializers.SerializerMethodField()
+    chairman_name = serializers.SerializerMethodField()
+    chairman_title = serializers.SerializerMethodField()
+    chairman_message = serializers.SerializerMethodField()
+    chairman_photo_url = serializers.SerializerMethodField()
+    goals = serializers.SerializerMethodField()
+    beacon = serializers.SerializerMethodField()
+    dreams = serializers.SerializerMethodField()
+    child_gain = serializers.SerializerMethodField()
+    holistic = serializers.SerializerMethodField()
+    admission_procedures = serializers.SerializerMethodField()
+    tuition = serializers.SerializerMethodField()
+    uniform = serializers.SerializerMethodField()
 
     class Meta:
         model = HomeContent
@@ -111,6 +123,18 @@ class HomeContentSerializer(serializers.ModelSerializer):
             "principal_title",
             "principal_message",
             "principal_photo_url",
+            "chairman_name",
+            "chairman_title",
+            "chairman_message",
+            "chairman_photo_url",
+            "goals",
+            "beacon",
+            "dreams",
+            "child_gain",
+            "holistic",
+            "admission_procedures",
+            "tuition",
+            "uniform",
         ]
 
     def get_hero_title(self, obj):
@@ -139,6 +163,42 @@ class HomeContentSerializer(serializers.ModelSerializer):
 
     def get_principal_photo_url(self, obj):
         return abs_url(self.context.get("request"), obj.principal_photo_src)
+
+    def get_chairman_name(self, obj):
+        return loc(obj, "chairman_name", lang_of(self.context))
+
+    def get_chairman_title(self, obj):
+        return loc(obj, "chairman_title", lang_of(self.context))
+
+    def get_chairman_message(self, obj):
+        return loc(obj, "chairman_message", lang_of(self.context))
+
+    def get_chairman_photo_url(self, obj):
+        return abs_url(self.context.get("request"), obj.chairman_photo_src)
+
+    def get_goals(self, obj):
+        return loc(obj, "goals", lang_of(self.context))
+
+    def get_beacon(self, obj):
+        return loc(obj, "beacon", lang_of(self.context))
+
+    def get_dreams(self, obj):
+        return loc(obj, "dreams", lang_of(self.context))
+
+    def get_child_gain(self, obj):
+        return loc(obj, "child_gain", lang_of(self.context))
+
+    def get_holistic(self, obj):
+        return loc(obj, "holistic", lang_of(self.context))
+
+    def get_admission_procedures(self, obj):
+        return loc(obj, "admission_procedures", lang_of(self.context))
+
+    def get_tuition(self, obj):
+        return loc(obj, "tuition", lang_of(self.context))
+
+    def get_uniform(self, obj):
+        return loc(obj, "uniform", lang_of(self.context))
 
 
 class HomeStatSerializer(serializers.ModelSerializer):

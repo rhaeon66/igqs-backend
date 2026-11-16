@@ -68,6 +68,18 @@ class HomeView(APIView):
             "principal_title": "",
             "principal_message": "",
             "principal_photo_url": "",
+            "chairman_name": "",
+            "chairman_title": "",
+            "chairman_message": "",
+            "chairman_photo_url": "",
+            "goals": "",
+            "beacon": "",
+            "dreams": "",
+            "child_gain": "",
+            "holistic": "",
+            "admission_procedures": "",
+            "tuition": "",
+            "uniform": "",
         }
         slides = [
             abs_url(request, slide.image.url)
@@ -104,7 +116,7 @@ class HomeView(APIView):
                     gallery, many=True, context=ctx(request)
                 ).data,
                 "curriculum_highlights": CurriculumGradeSerializer(
-                    CurriculumGrade.objects.filter(listed_on_curriculum=True)[:4],
+                    CurriculumGrade.objects.filter(listed_on_curriculum=True),
                     many=True,
                     context=ctx(request),
                 ).data,
