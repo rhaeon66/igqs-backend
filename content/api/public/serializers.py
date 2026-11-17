@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import (
+from content.models import (
     AboutPage,
     ContactMessage,
     CurriculumDocument,
@@ -10,6 +10,7 @@ from .models import (
     GalleryAlbum,
     GalleryImage,
     HomeContent,
+    HomeSection,
     HomeStat,
     Leader,
     NewsPost,
@@ -199,6 +200,21 @@ class HomeContentSerializer(serializers.ModelSerializer):
 
     def get_uniform(self, obj):
         return loc(obj, "uniform", lang_of(self.context))
+
+
+class HomeSectionSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HomeSection
+        fields = ["id", "title", "description"]
+
+    def get_title(self, obj):
+        return loc(obj, "title", lang_of(self.context))
+
+    def get_description(self, obj):
+        return loc(obj, "description", lang_of(self.context))
 
 
 class HomeStatSerializer(serializers.ModelSerializer):

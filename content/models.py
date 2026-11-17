@@ -122,6 +122,22 @@ class HomeContent(BilingualMixin, models.Model):
         return self.chairman_photo_url
 
 
+class HomeSection(BilingualMixin, models.Model):
+    """A homepage block staff can add: a title and a description, in both languages."""
+
+    title_en = models.CharField(max_length=200)
+    title_bn = models.CharField(max_length=200, blank=True)
+    description_en = models.TextField()
+    description_bn = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return self.title_en
+
+
 class HeroSlide(models.Model):
     image = models.ImageField(upload_to="home/slides/")
     order = models.PositiveIntegerField(default=0)

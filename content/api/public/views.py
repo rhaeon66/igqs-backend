@@ -3,7 +3,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import (
+from content.models import (
     AboutPage,
     CurriculumGrade,
     Event,
@@ -11,6 +11,7 @@ from .models import (
     GalleryAlbum,
     HeroSlide,
     HomeContent,
+    HomeSection,
     HomeStat,
     Leader,
     NewsPost,
@@ -18,7 +19,7 @@ from .models import (
     Testimonial,
     WhyChooseItem,
 )
-from .serializers import (
+from content.api.public.serializers import (
     AboutPageSerializer,
     ContactMessageSerializer,
     CurriculumGradeSerializer,
@@ -27,6 +28,7 @@ from .serializers import (
     FacilitySerializer,
     GalleryAlbumSerializer,
     HomeContentSerializer,
+    HomeSectionSerializer,
     HomeStatSerializer,
     LeaderSerializer,
     NewsDetailSerializer,
@@ -94,6 +96,9 @@ class HomeView(APIView):
                     else empty_home
                 ),
                 "hero_images": slides,
+                "sections": HomeSectionSerializer(
+                    HomeSection.objects.all(), many=True, context=ctx(request)
+                ).data,
                 "highlights": HomeStatSerializer(
                     HomeStat.objects.all(), many=True, context=ctx(request)
                 ).data,

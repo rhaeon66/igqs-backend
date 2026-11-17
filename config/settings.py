@@ -39,7 +39,7 @@ if not SECRET_KEY:
             "DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is not enabled."
         )
 
-# Local only. Skips staff and Django admin sign-in. Stays off during tests,
+# Local only. Skips staff sign-in. Stays off during tests,
 # and can never be enabled outside DEBUG, so a stray prod env var is inert.
 ADMIN_LOGIN_DISABLED = (
     DEBUG
@@ -59,7 +59,6 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3355")
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -79,7 +78,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "config.local_admin.LocalAdminLoginMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

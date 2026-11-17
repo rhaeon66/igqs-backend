@@ -1,6 +1,7 @@
 from django.urls import path
 
-from . import staff_views, views
+from admissions.api.public import views
+from admissions.api.staff import views as staff_views
 
 urlpatterns = [
     path("classes/", views.ApplyingClassListView.as_view()),

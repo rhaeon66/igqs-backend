@@ -5,11 +5,28 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from admissions.authentication import LocalStaffAuthentication
-from admissions.models import AdmissionFee, PaymentMethod
-from admissions.permissions import IsStaffUser
-
-from .models import (
+from admissions.permissions import StaffAuthMixin
+from content.api.staff.serializers import (
+    StaffAboutPageSerializer,
+    StaffContactMessageSerializer,
+    StaffCurriculumDocumentSerializer,
+    StaffCurriculumGradeSerializer,
+    StaffEventSerializer,
+    StaffFacilitySerializer,
+    StaffGalleryAlbumSerializer,
+    StaffGalleryImageSerializer,
+    StaffHeroSlideSerializer,
+    StaffHomeContentSerializer,
+    StaffHomeSectionSerializer,
+    StaffHomeStatSerializer,
+    StaffLeaderSerializer,
+    StaffNewsSerializer,
+    StaffSiteSettingsSerializer,
+    StaffSubjectSerializer,
+    StaffTestimonialSerializer,
+    StaffWhyChooseSerializer,
+)
+from content.models import (
     STAT_ICONS,
     AboutPage,
     ContactMessage,
@@ -21,6 +38,7 @@ from .models import (
     GalleryImage,
     HeroSlide,
     HomeContent,
+    HomeSection,
     HomeStat,
     Leader,
     NewsPost,
@@ -29,32 +47,6 @@ from .models import (
     Testimonial,
     WhyChooseItem,
 )
-from .staff_serializers import (
-    StaffAboutPageSerializer,
-    StaffAdmissionFeeSerializer,
-    StaffContactMessageSerializer,
-    StaffCurriculumDocumentSerializer,
-    StaffCurriculumGradeSerializer,
-    StaffEventSerializer,
-    StaffFacilitySerializer,
-    StaffGalleryAlbumSerializer,
-    StaffGalleryImageSerializer,
-    StaffHeroSlideSerializer,
-    StaffHomeContentSerializer,
-    StaffHomeStatSerializer,
-    StaffLeaderSerializer,
-    StaffNewsSerializer,
-    StaffPaymentMethodSerializer,
-    StaffSiteSettingsSerializer,
-    StaffSubjectSerializer,
-    StaffTestimonialSerializer,
-    StaffWhyChooseSerializer,
-)
-
-
-class StaffAuthMixin:
-    authentication_classes = [LocalStaffAuthentication]
-    permission_classes = [IsStaffUser]
 
 
 class SingletonStaffView(StaffAuthMixin, APIView):
@@ -131,6 +123,11 @@ class HeroSlideViewSet(StaffModelViewSet):
             self.get_serializer(created, many=True).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class HomeSectionViewSet(StaffModelViewSet):
+    queryset = HomeSection.objects.all()
+    serializer_class = StaffHomeSectionSerializer
 
 
 class HomeStatViewSet(StaffModelViewSet):
@@ -272,27 +269,6 @@ class GalleryImageViewSet(StaffModelViewSet):
         ]
         serializer = self.get_serializer(created, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-class AdmissionFeeViewSet(StaffModelViewSet):
-    # The default (no-grade) admission fee only. Per-class fees are now set
-    # from the class's own editor (CurriculumGradeViewSet / fee_amount), the
-    # single place that keeps exactly one active fee per grade — this view
-    # staying open to any grade would let staff create a second, divergent
-    # fee for the same class through this raw CRUD screen.
-    queryset = AdmissionFee.objects.filter(grade__isnull=True)
-    serializer_class = StaffAdmissionFeeSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(grade=None)
-
-    def perform_update(self, serializer):
-        serializer.save(grade=None)
-
-
-class PaymentMethodViewSet(StaffModelViewSet):
-    queryset = PaymentMethod.objects.all()
-    serializer_class = StaffPaymentMethodSerializer
 
 
 class ContactMessageViewSet(StaffAuthMixin, viewsets.ModelViewSet):

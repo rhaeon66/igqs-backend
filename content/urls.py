@@ -1,10 +1,13 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from . import staff_views, views
+from admissions.api.staff.fees import AdmissionFeeViewSet, PaymentMethodViewSet
+from content.api.public import views
+from content.api.staff import views as staff_views
 
 router = DefaultRouter()
 router.register("staff/hero-slides", staff_views.HeroSlideViewSet, basename="staff-hero-slides")
+router.register("staff/sections", staff_views.HomeSectionViewSet, basename="staff-sections")
 router.register("staff/highlights", staff_views.HomeStatViewSet, basename="staff-highlights")
 router.register("staff/why-choose", staff_views.WhyChooseViewSet, basename="staff-why-choose")
 router.register("staff/testimonials", staff_views.TestimonialViewSet, basename="staff-testimonials")
@@ -17,8 +20,8 @@ router.register("staff/events", staff_views.EventViewSet, basename="staff-events
 router.register("staff/news", staff_views.NewsViewSet, basename="staff-news")
 router.register("staff/albums", staff_views.GalleryAlbumViewSet, basename="staff-albums")
 router.register("staff/images", staff_views.GalleryImageViewSet, basename="staff-images")
-router.register("staff/fees", staff_views.AdmissionFeeViewSet, basename="staff-fees")
-router.register("staff/methods", staff_views.PaymentMethodViewSet, basename="staff-methods")
+router.register("staff/fees", AdmissionFeeViewSet, basename="staff-fees")
+router.register("staff/methods", PaymentMethodViewSet, basename="staff-methods")
 router.register("staff/messages", staff_views.ContactMessageViewSet, basename="staff-messages")
 
 urlpatterns = [
