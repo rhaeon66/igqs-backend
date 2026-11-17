@@ -1,11 +1,12 @@
 from rest_framework import serializers
 
 from content.api.public.serializers import abs_url
-from content.api.staff.serializers.mixins import ClearUploadedImagesMixin, SlugFromTitleMixin
+from content.api.staff.serializers.mixins import ClearUploadedImagesMixin, SanitizeHtmlMixin, SlugFromTitleMixin
 from content.models import Event, GalleryAlbum, GalleryImage, NewsPost
 
 
-class StaffEventSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+class StaffEventSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     uploaded_image_fields = ("image",)
     image_src = serializers.SerializerMethodField()
     clear_image = serializers.BooleanField(required=False, write_only=True)
@@ -34,8 +35,17 @@ class StaffEventSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, seriali
     def get_image_src(self, obj):
         return abs_url(self.context.get("request"), obj.image_src)
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        start = attrs.get("start_at", getattr(self.instance, "start_at", None))
+        end = attrs["end_at"] if "end_at" in attrs else getattr(self.instance, "end_at", None)
+        if start and end and end < start:
+            raise serializers.ValidationError({"end_at": "The end must be after the start."})
+        return attrs
 
-class StaffNewsSerializer(ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+
+class StaffNewsSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     uploaded_image_fields = ("featured_image",)
     image_src = serializers.SerializerMethodField()
     clear_featured_image = serializers.BooleanField(required=False, write_only=True)

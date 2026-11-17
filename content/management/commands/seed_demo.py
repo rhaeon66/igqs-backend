@@ -130,13 +130,87 @@ class Command(BaseCommand):
                 "chairman_name_bn": "জনাব তারিক ইসলাম",
                 "chairman_title_en": "Chairman, Managing Committee",
                 "chairman_title_bn": "সভাপতি, পরিচালনা পরিষদ",
-                "chairman_message_en": "IGQS exists so a child can grow in knowledge and character together. The committee's duty is to keep that trust: sound governance, a safe campus, and a school that stays true to the Qur'an.",
-                "chairman_message_bn": "আইজিকিউএস আছে যাতে একটি শিশু জ্ঞান ও চরিত্রে একসাথে বেড়ে ওঠে। পরিষদের দায়িত্ব সেই আমানত রক্ষা করা: সুষ্ঠু পরিচালনা, নিরাপদ ক্যাম্পাস, এবং কুরআনের প্রতি অবিচল একটি বিদ্যালয়।",
+                "chairman_message_en": (
+                    "In the name of Allah, the Most Gracious, the Most Merciful.\n\n"
+                    "Dear students,\n"
+                    "Respected parents, and well-wishers,\n\n"
+                    "Assalamu Alaikum and warm greetings to you all. Education is the backbone of a nation and the key to "
+                    "building an ideal society. The true purpose of education is not just to gain textbook knowledge. Rather, "
+                    "our main goal is to raise our students with strong moral values, humanity, and skills in modern technology.\n\n"
+                    "We firmly believe that today's students are the future architects of a smart and prosperous world. With this "
+                    "vision in mind, our institution is working tirelessly to develop the talents of our students. We have a team "
+                    "of experienced, dedicated teachers and modern facilities to support this journey. Instead of just chasing a "
+                    "good result in examination, we are committed to bringing out the hidden talents of our students and shaping "
+                    "them into good citizens.\n\n"
+                    "To maintain our continuous success, strong discipline, and the quality of education, we always welcome the "
+                    "combined efforts of our teachers, parents, and the school management.\n\n"
+                    "I hope that the future journey of all our students will be beautiful and glorious.\n\n"
+                    "I seek everyone's cooperation and prayers for the overall well-being and continuous growth of our institution."
+                ),
+                "chairman_message_bn": (
+                    "বিসমিল্লাহির রাহমানির রাহিম\n\n"
+                    "সুপ্রিয় শিক্ষার্থীবৃন্দ,\n"
+                    "সম্মানিত অভিভাবকমণ্ডলী এবং শুভানুধ্যায়ী,\n\n"
+                    "সবাইকে জানাই আন্তরিক শুভেচ্ছা ও সালাম। শিক্ষাই জাতির মেরুদণ্ড এবং একটি আদর্শ সমাজ গঠনের মূল চাবিকাঠি। "
+                    "শুধু পাঠ্যপুস্তকীয় জ্ঞান অর্জনই শিক্ষার একমাত্র উদ্দেশ্য নয়; বরং একজন শিক্ষার্থীকে নৈতিকতা, মানবিক মূল্যবোধ "
+                    "এবং আধুনিক প্রযুক্তিতে দক্ষ করে গড়ে তোলাই আমাদের মূল লক্ষ্য।\n\n"
+                    "আমরা দৃঢ়ভাবে বিশ্বাস করি, আজকের শিক্ষার্থীরাই আগামী দিনের স্মার্ট ও সমৃদ্ধ বাংলাদেশ গড়ার কারিগর। সেই লক্ষ্যকে "
+                    "সামনে রেখেই আমাদের শিক্ষা প্রতিষ্ঠানটি একঝাঁক অভিজ্ঞ ও নিবেদিতপ্রাণ শিক্ষক মণ্ডলী এবং আধুনিক সুযোগ-সুবিধার "
+                    "সমন্বয়ে শিক্ষার্থীদের মেধা বিকাশে নিরলসভাবে কাজ করে যাচ্ছে। আমরা কেবল পরীক্ষায় ভালো ফলাফল অর্জনের পেছনে না "
+                    "ছুটে শিক্ষার্থীদের সুপ্ত প্রতিভার বিকাশ এবং তাদের সুনাগরিক হিসেবে গড়ে তুলতে প্রতিশ্রুতিবদ্ধ।\n\n"
+                    "প্রতিষ্ঠানের ধারাবাহিক সাফল্য, উন্নত শৃঙ্খলা এবং শিক্ষার গুণগত মান ধরে রাখতে আমরা শিক্ষক, অভিভাবক এবং পরিচালনা "
+                    "পর্বের সম্মিলিত প্রচেষ্টায় আন্তরিক মোবারকবাদ জানাই।\n\n"
+                    "আমি আশা করি, আমাদের সকল শিক্ষার্থীর ভবিষ্যৎ জীবনের পথচলা সুন্দর ও গৌরবময় হবে।\n\n"
+                    "প্রতিষ্ঠানের সার্বিক কল্যাণ ও উত্তরোত্তর সমৃদ্ধির জন্য আমি সকলের সহযোগিতা ও দোয়া কামনা করছি।"
+                ),
                 "chairman_photo_url": IMG["leader3"],
-                "goals_en": "Ideal Global Qur'anic School was founded so every child can grow in body, mind, intellect, and spirit. The aim is to draw out the talent already in them and help them become Islamic scholars, doctors, engineers, lawyers, scientists, educators, and citizens devoted to the country and the nation — successful in this life and the next, insha'Allah.",
-                "goals_bn": "আদর্শ গ্লোবাল কুরআনিক স্কুল প্রতিষ্ঠিত হয়েছে যাতে প্রতিটি শিশু শারীরিক, মানসিক, বুদ্ধিবৃত্তিক ও আধ্যাত্মিকভাবে বেড়ে ওঠে। লক্ষ্য হলো তাদের ভেতরের প্রতিভা বিকশিত করে ইসলামি স্কলার, চিকিৎসক, প্রকৌশলী, আইনজীবী, বিজ্ঞানী, শিক্ষাবিদ এবং দেশ ও জাতির প্রতি নিবেদিত নাগরিক হিসেবে গড়ে তোলা — ইহকাল ও পরকালে সফলতার জন্য, ইনশাআল্লাহ।",
-                "beacon_en": "IGQS is a beacon of hope: a modern, distinctive school where Bangla, Arabic, and English are taught together. Islamic learning sits beside science-based knowledge, so a child can build a life on both. A student who is struggling is helped to become capable. A student who is already capable is helped to go further.",
-                "beacon_bn": "আইজিকিউএস আশার আলো: একটি আধুনিক ও ব্যতিক্রমী বিদ্যালয়, যেখানে বাংলা, আরবি ও ইংরেজি একসাথে পড়ানো হয়। ইসলামি শিক্ষার পাশে বিজ্ঞানভিত্তিক জ্ঞান থাকে, যাতে একটি শিশু দুইয়ের ওপরই জীবন গড়তে পারে। যে শিক্ষার্থী পিছিয়ে আছে, তাকে সক্ষম করে তোলা হয়। যে ইতিমধ্যে সক্ষম, তাকে আরও এগিয়ে নেওয়া হয়।",
+                "goals_en": (
+                    "To establish an exemplary educational institution by integrating revelation-based (divine) education "
+                    "with secular (worldly) education, supported by a unique and comprehensive curriculum.\n\n"
+                    "To play a leading role—for the benefit of the nation, the people, and global society—in implementing "
+                    "an ethical, life-oriented, and work-focused educational system, while effectively rooting out both "
+                    "secular education devoid of moral values and religious education devoid of practical application.\n\n"
+                    "To play a pioneering role in building a nation grounded in human values by transforming the fragile "
+                    "global education system—improving core educational frameworks at both national and international levels, "
+                    "and integrating co-curricular activities alongside other vocationally-oriented educational approaches."
+                ),
+                "goals_bn": (
+                    "ওহীভিত্তিক শিক্ষা অবস্থার সাথে জাগতিক শিক্ষাব্যবস্থার সমন্বয় ও অনুপম কারিকুলামে "
+                    "একটি আদর্শ শিক্ষা প্রতিষ্ঠান গড়ে তোলা।\n\n"
+                    "ধর্মহীন কর্মশিক্ষা এবং কর্মহীন ধর্ম শিক্ষার মূল উৎপাটন সাধনে নৈতিকতাপূর্ণ জীবনধর্মী ও "
+                    "কর্মমুখী শিক্ষা ব্যবস্থার বাস্তবায়নে দেশ, জাতি ও বিশ্ব সমাজে অগ্রণী ভূমিকা রাখা।\n\n"
+                    "সমগ্র বিশ্বের ভঙ্গুর এই শিক্ষা ব্যবস্থার পরিবর্তনের মাধ্যমে জাতীয় ও আন্তর্জাতিকভাবে মূল "
+                    "শিক্ষা ব্যবস্থার উন্নয়ন সাধনসহ কো-কারিকুলাম অ্যাক্টিভিটিস ও অন্যান্য কর্মমুখী শিক্ষা "
+                    "ব্যবস্থার সমন্বয়ে মানবিক মূল্যবোধ সম্পন্ন জাতি গঠনে অগ্রণী ভূমিকা রাখা।"
+                ),
+                "beacon_en": (
+                    "Respected and conscientious parents! Every child is the finest and most precious asset of their family"
+                    "—a treasure trove of immense potential, and a rising sun on the horizon of the future. How do you wish "
+                    "to nurture this cherished child of yours? Do you desire for them to be enriched with the knowledge of "
+                    "Divine Revelation (Wahi) while also receiving a modern, state-of-the-art education—ultimately becoming "
+                    "an exemplary guide on both national and international stages?\n\n"
+                    "What is it that you desire? Do you wish for someone to be proficient in their mother tongue (Bengali), "
+                    "the language of the Quran (Arabic), and the international language (English), while also being imbued "
+                    "with strong moral values? Currently, due to a fragmented, three-tiered education system—comprising the "
+                    "general, Qawmi, and Alia Madrasa streams—this noble aspiration remains merely an aspiration, never "
+                    "becoming a reality.\n\n"
+                    "Thus, the 'Three Languages, Four Skills-based Ideal Global Qur'anic School' has been established and is "
+                    "operated based on a unique curriculum and syllabus that integrates these elements. It can serve as a "
+                    "beacon of hope for navigators like you, amidst a sea of profound darkness."
+                ),
+                "beacon_bn": (
+                    "সম্মানিত ও সচেতন অভিভাবক মহোদয়! প্রতিটি সন্তান হলো তার পরিবারের শ্রেষ্ঠ ও মূল্যবান সম্পদ, "
+                    "এক অমিত সম্ভাবনার গুপ্তধন। আগামী দিগন্তে এক উদীয়মান সূর্য। সেই আদরের সন্তানকে আপনি কিভাবে "
+                    "গড়ে তুলতে চান? আপনি কি চান? সে ওহীর জ্ঞানে সমৃদ্ধ হওয়ার পাশাপাশি সর্বাধুনিক শিক্ষায় শিক্ষিত "
+                    "হয়ে জাতীয় ও আন্তর্জাতিক পর্যায়ে হোক একজন আদর্শ পথ-প্রদর্শক?\n\n"
+                    "আপনি কি চান? মাতৃভাষা বাংলার পাশাপাশি কোরআনের ভাষা আরবী ও আন্তর্জাতিক ভাষা ইংরেজিতে সুদক্ষ "
+                    "এবং নৈতিক মূল্যবোধে হোক উজ্জীবিত?\n\n"
+                    "বর্তমানে ত্রিমুখী (জেনারেল, কওমি ও আলিয়া মাদ্রাসা) শিক্ষাব্যবস্থার কারণে এই মহান প্রত্যাশা "
+                    "শুধু প্রত্যাশাই থেকে যাচ্ছে, বাস্তবতার মুখ আর দেখা হচ্ছে না।\n\n"
+                    "তাই এসবের সমন্বয়ে এক অনুপম কারিকুলাম ও সিলেবাস নিয়ে প্রতিষ্ঠিত ও পরিচালিত থ্রি ল্যাঙ্গুয়েজেস "
+                    "ফোর স্কিলস বেইজড আইডিয়াল গ্লোবাল কুরআ'নিক স্কুল। এটি হতে পারে অমানিশার সাগরে আপনার মত "
+                    "নাবিকদের জন্য আশার আলোকবর্তিকা।"
+                ),
             },
         )
 

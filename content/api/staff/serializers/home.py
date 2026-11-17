@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from content.api.public.serializers import abs_url
-from content.api.staff.serializers.mixins import ClearUploadedImagesMixin
+from content.api.staff.serializers.mixins import ClearUploadedImagesMixin, SanitizeHtmlMixin
 from content.models import (
     HeroSlide,
     HomeContent,
@@ -51,8 +51,34 @@ class StaffSiteSettingsSerializer(ClearUploadedImagesMixin, serializers.ModelSer
         return abs_url(self.context.get("request"), obj.logo_src)
 
 
-class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+class StaffHomeContentSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, serializers.ModelSerializer):
     uploaded_image_fields = ("hero_image", "principal_photo", "chairman_photo")
+    html_fields = (
+        "welcome_en",
+        "welcome_bn",
+        "about_preview_en",
+        "about_preview_bn",
+        "principal_message_en",
+        "principal_message_bn",
+        "chairman_message_en",
+        "chairman_message_bn",
+        "goals_en",
+        "goals_bn",
+        "beacon_en",
+        "beacon_bn",
+        "dreams_en",
+        "dreams_bn",
+        "child_gain_en",
+        "child_gain_bn",
+        "holistic_en",
+        "holistic_bn",
+        "admission_procedures_en",
+        "admission_procedures_bn",
+        "tuition_en",
+        "tuition_bn",
+        "uniform_en",
+        "uniform_bn",
+    )
     clear_hero_image = serializers.BooleanField(required=False, write_only=True)
     clear_principal_photo = serializers.BooleanField(required=False, write_only=True)
     clear_chairman_photo = serializers.BooleanField(required=False, write_only=True)
@@ -109,7 +135,8 @@ class StaffHomeContentSerializer(ClearUploadedImagesMixin, serializers.ModelSeri
         ]
 
 
-class StaffHomeSectionSerializer(serializers.ModelSerializer):
+class StaffHomeSectionSerializer(SanitizeHtmlMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     class Meta:
         model = HomeSection
         fields = [
@@ -140,7 +167,8 @@ class StaffHomeStatSerializer(serializers.ModelSerializer):
         fields = ["id", "value", "label_en", "label_bn", "icon", "order"]
 
 
-class StaffWhyChooseSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+class StaffWhyChooseSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     uploaded_image_fields = ("image",)
     clear_image = serializers.BooleanField(required=False, write_only=True)
     image_src = serializers.SerializerMethodField()
@@ -165,7 +193,8 @@ class StaffWhyChooseSerializer(ClearUploadedImagesMixin, serializers.ModelSerial
         return abs_url(self.context.get("request"), obj.image_src)
 
 
-class StaffTestimonialSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+class StaffTestimonialSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, serializers.ModelSerializer):
+    html_fields = ("quote_en", "quote_bn")
     uploaded_image_fields = ("image",)
     clear_image = serializers.BooleanField(required=False, write_only=True)
     image_src = serializers.SerializerMethodField()

@@ -1,10 +1,24 @@
 from rest_framework import serializers
 
-from content.api.staff.serializers.mixins import ClearUploadedImagesMixin
+from content.api.staff.serializers.mixins import ClearUploadedImagesMixin, SanitizeHtmlMixin
 from content.models import AboutPage, Facility, Leader
 
 
-class StaffAboutPageSerializer(serializers.ModelSerializer):
+class StaffAboutPageSerializer(SanitizeHtmlMixin, serializers.ModelSerializer):
+    html_fields = (
+        "introduction_en",
+        "introduction_bn",
+        "vision_en",
+        "vision_bn",
+        "mission_en",
+        "mission_bn",
+        "history_en",
+        "history_bn",
+        "quranic_approach_en",
+        "quranic_approach_bn",
+        "principal_message_en",
+        "principal_message_bn",
+    )
     class Meta:
         model = AboutPage
         fields = [
@@ -24,7 +38,8 @@ class StaffAboutPageSerializer(serializers.ModelSerializer):
         ]
 
 
-class StaffLeaderSerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+class StaffLeaderSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, serializers.ModelSerializer):
+    html_fields = ("bio_en", "bio_bn")
     uploaded_image_fields = ("photo",)
     clear_photo = serializers.BooleanField(required=False, write_only=True)
 
@@ -45,7 +60,8 @@ class StaffLeaderSerializer(ClearUploadedImagesMixin, serializers.ModelSerialize
         ]
 
 
-class StaffFacilitySerializer(ClearUploadedImagesMixin, serializers.ModelSerializer):
+class StaffFacilitySerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     uploaded_image_fields = ("image",)
     clear_image = serializers.BooleanField(required=False, write_only=True)
 

@@ -4,6 +4,7 @@ from admissions.eligibility import parse_fee_amount, set_class_fee
 from content.api.public.serializers import abs_url
 from content.api.staff.serializers.mixins import (
     ClearUploadedImagesMixin,
+    SanitizeHtmlMixin,
     SlugFromTitleMixin,
     unique_slug,
     wants_new_slug,
@@ -53,7 +54,8 @@ class StaffCurriculumDocumentSerializer(
         return abs_url(self.context.get("request"), obj.download_url)
 
 
-class StaffCurriculumGradeSerializer(SlugFromTitleMixin, serializers.ModelSerializer):
+class StaffCurriculumGradeSerializer(SanitizeHtmlMixin, SlugFromTitleMixin, serializers.ModelSerializer):
+    html_fields = ("description_en", "description_bn")
     subjects = StaffSubjectSerializer(many=True, read_only=True)
     documents = StaffCurriculumDocumentSerializer(many=True, read_only=True)
     # Admission fee lives on a separate AdmissionFee row (one per grade), not

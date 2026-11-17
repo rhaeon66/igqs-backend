@@ -46,7 +46,7 @@ def ctx(request):
 
 class SiteSettingsView(APIView):
     def get(self, request):
-        obj = SiteSettings.objects.first()
+        obj = SiteSettings.objects.order_by("id").first()
         if not obj:
             return Response({}, status=status.HTTP_404_NOT_FOUND)
         return Response(SiteSettingsSerializer(obj, context=ctx(request)).data)
@@ -54,7 +54,7 @@ class SiteSettingsView(APIView):
 
 class HomeView(APIView):
     def get(self, request):
-        home = HomeContent.objects.first()
+        home = HomeContent.objects.order_by("id").first()
         now = timezone.now()
         events = Event.objects.filter(is_published=True, start_at__gte=now)[:3]
         news = NewsPost.objects.filter(is_published=True)[:4]
@@ -131,7 +131,7 @@ class HomeView(APIView):
 
 class AboutView(APIView):
     def get(self, request):
-        about = AboutPage.objects.first()
+        about = AboutPage.objects.order_by("id").first()
         if not about:
             return Response({}, status=status.HTTP_404_NOT_FOUND)
         return Response(

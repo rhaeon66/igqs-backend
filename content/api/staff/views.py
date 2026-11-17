@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Max
 from PIL import Image, UnidentifiedImageError
 from rest_framework import status, viewsets
@@ -54,7 +55,9 @@ class SingletonStaffView(StaffAuthMixin, APIView):
     serializer_class = None
 
     def get_object(self):
-        return self.model.objects.first() or self.model()
+        # Always the oldest row. A second accidental row must not become
+        # the one the homepage shows, and a save must update that same row.
+        return self.model.objects.order_by("id").first() or self.model()
 
     def get(self, request):
         serializer = self.serializer_class(
@@ -63,15 +66,16 @@ class SingletonStaffView(StaffAuthMixin, APIView):
         return Response(serializer.data)
 
     def patch(self, request):
-        instance = self.model.objects.first()
-        serializer = self.serializer_class(
-            instance,
-            data=request.data,
-            partial=bool(instance),
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with transaction.atomic():
+            instance = self.model.objects.select_for_update().order_by("id").first()
+            serializer = self.serializer_class(
+                instance,
+                data=request.data,
+                partial=bool(instance),
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
         return Response(serializer.data)
 
 

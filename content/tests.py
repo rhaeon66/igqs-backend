@@ -571,6 +571,15 @@ class StaffPartialUpdateSlugTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.data["slug"], "eid-party")
 
+    def test_event_end_before_start_is_rejected(self):
+        response = self.client.patch(
+            f"/api/staff/events/{self.event.pk}/",
+            {"end_at": "2026-04-01T10:00:00Z"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("end_at", response.data)
+
     def test_blank_slug_still_regenerates_from_the_title(self):
         response = self.client.patch(
             f"/api/staff/grades/{self.grade.pk}/", {"slug": ""}, format="json"

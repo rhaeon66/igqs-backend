@@ -1,6 +1,8 @@
 from django.utils.text import slugify
 from rest_framework import serializers
 
+from content.sanitize import sanitize_html
+
 
 def unique_slug(model, value, instance=None):
     base = slugify(value) or "item"
@@ -27,6 +29,20 @@ def wants_new_slug(serializer, attrs) -> bool:
     if "slug" in attrs:
         return not attrs["slug"]
     return not getattr(serializer.instance, "slug", "")
+
+
+class SanitizeHtmlMixin:
+    """Cleans article HTML on the fields named in html_fields."""
+
+    html_fields: tuple[str, ...] = ()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        for name in self.html_fields:
+            value = attrs.get(name)
+            if isinstance(value, str):
+                attrs[name] = sanitize_html(value)
+        return attrs
 
 
 class SlugFromTitleMixin:
