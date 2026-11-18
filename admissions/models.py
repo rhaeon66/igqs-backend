@@ -46,6 +46,30 @@ class AdmissionFee(models.Model):
         return f"{self.currency} {int(self.amount):,}"
 
 
+class FeeTrack(models.TextChoices):
+    BANGLA = "bangla", "Bangla version"
+    ENGLISH = "english", "English version"
+
+
+class FeeScheduleRow(models.Model):
+    """Published class fees: one-time admission, annual session, monthly tuition."""
+
+    track = models.CharField(max_length=20, choices=FeeTrack.choices)
+    name_en = models.CharField(max_length=80)
+    name_bn = models.CharField(max_length=80)
+    admission_fee = models.PositiveIntegerField()
+    session_fee = models.PositiveIntegerField()
+    monthly_fee = models.PositiveIntegerField()
+    hifz_fee = models.PositiveIntegerField(null=True, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["track", "order", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.track}: {self.name_en}"
+
+
 class PaymentMethod(models.Model):
     code = models.SlugField(max_length=20, unique=True)
     name_en = models.CharField(max_length=80)
@@ -102,6 +126,11 @@ class AdmissionApplication(models.Model):
     previous_class = models.CharField(max_length=80, blank=True)
     applying_class = models.CharField(max_length=80)
     student_photo = models.ImageField(upload_to="admissions/photos/")
+    guardian_nid = models.FileField(upload_to="admissions/guardian-nids/", blank=True)
+    guardian_photo = models.ImageField(upload_to="admissions/guardian-photos/", blank=True)
+    academic_documents = models.FileField(
+        upload_to="admissions/academic-documents/", blank=True
+    )
     student_address = models.TextField()
     father_name = models.CharField(max_length=150)
     mother_name = models.CharField(max_length=150)

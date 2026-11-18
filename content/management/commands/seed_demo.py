@@ -354,6 +354,7 @@ class Command(BaseCommand):
                     bio_en="Oversees academic quality, tarbiyah, and the school's Qur'anic vision.",
                     bio_bn="একাডেমিক মান, তারবিয়াহ ও বিদ্যালয়ের কুরআনিক দৃষ্টিভঙ্গি তত্ত্বাবধান করেন।",
                     photo_url=IMG["principal"],
+                    panel="principal",
                     order=1,
                 ),
                 Leader(
@@ -364,6 +365,7 @@ class Command(BaseCommand):
                     bio_en="Leads tajweed, Hifz, and Arabic programmes for all grades.",
                     bio_bn="সব শ্রেণির তাজবিদ, হিফজ ও আরবি কার্যক্রম পরিচালনা করেন।",
                     photo_url=IMG["leader2"],
+                    panel="teacher",
                     order=2,
                 ),
                 Leader(
@@ -374,6 +376,7 @@ class Command(BaseCommand):
                     bio_en="Guides governance, facilities, and long-term development of IGQS.",
                     bio_bn="আইজিকিউএস-এর পরিচালনা, অবকাঠামো ও দীর্ঘমেয়াদি উন্নয়ন পরিচালনা করেন।",
                     photo_url=IMG["leader3"],
+                    panel="chairman",
                     order=3,
                 ),
             ]

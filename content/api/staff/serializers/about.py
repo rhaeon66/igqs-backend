@@ -56,6 +56,7 @@ class StaffLeaderSerializer(SanitizeHtmlMixin, ClearUploadedImagesMixin, seriali
             "photo",
             "clear_photo",
             "photo_url",
+            "panel",
             "order",
         ]
 

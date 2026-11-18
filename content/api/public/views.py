@@ -15,6 +15,7 @@ from content.models import (
     HomeStat,
     Leader,
     NewsPost,
+    PersonPanel,
     SiteSettings,
     Testimonial,
     WhyChooseItem,
@@ -31,6 +32,8 @@ from content.api.public.serializers import (
     HomeSectionSerializer,
     HomeStatSerializer,
     LeaderSerializer,
+    lang_of,
+    loc,
     NewsDetailSerializer,
     NewsListSerializer,
     SiteSettingsSerializer,
@@ -134,17 +137,29 @@ class AboutView(APIView):
         about = AboutPage.objects.order_by("id").first()
         if not about:
             return Response({}, status=status.HTTP_404_NOT_FOUND)
+        context = ctx(request)
+        about_data = AboutPageSerializer(about, context=context).data
+        home = HomeContent.objects.order_by("id").first()
+        about_data["chairman_message"] = (
+            loc(home, "chairman_message", lang_of(context)) if home else ""
+        )
         return Response(
             {
-                "about": AboutPageSerializer(about, context=ctx(request)).data,
+                "about": about_data,
                 "leadership": LeaderSerializer(
-                    Leader.objects.all(), many=True, context=ctx(request)
+                    Leader.objects.all(), many=True, context=context
                 ).data,
                 "facilities": FacilitySerializer(
                     Facility.objects.all(), many=True, context=ctx(request)
                 ).data,
             }
         )
+
+
+class CurriculumInstructionView(APIView):
+    def get(self, request):
+        teachers = Leader.objects.filter(panel=PersonPanel.TEACHER)
+        return Response(LeaderSerializer(teachers, many=True, context=ctx(request)).data)
 
 
 class CurriculumView(APIView):

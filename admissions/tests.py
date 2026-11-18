@@ -175,6 +175,10 @@ def apply_payload(**overrides):
         "applying_class": "Playgroup",
         "applying_class_slug": "playgroup",
         "student_photo": image_upload(),
+        "guardian_nid": SimpleUploadedFile(
+            "nid.pdf", b"%PDF-1.4 test", content_type="application/pdf"
+        ),
+        "guardian_photo": image_upload("guardian.png"),
         "student_address": "Uttara, Dhaka",
         "father_name": "Karim Uddin",
         "mother_name": "Salma Begum",

@@ -15,10 +15,11 @@ from admissions.api.payloads import (
 from admissions.api.public.serializers import (
     AdmissionApplicationSerializer,
     AdmissionFeeSerializer,
+    FeeScheduleRowSerializer,
     PaymentMethodSerializer,
 )
 from admissions.eligibility import admission_grades
-from admissions.models import AdmissionApplication, AdmissionFee, PaymentMethod
+from admissions.models import AdmissionApplication, AdmissionFee, FeeScheduleRow, FeeTrack, PaymentMethod
 from admissions.phone import (
     PhoneError,
     clear_lookup_failures,
@@ -45,12 +46,29 @@ class AdmissionInfoView(APIView):
         ctx = {"request": request}
         fees = AdmissionFee.objects.filter(is_active=True).select_related("grade")
         default_fee = fees.filter(grade__isnull=True).first()
+        lang = "en" if request.query_params.get("lang") == "en" else "bn"
+        schedules = []
+        for track, title_en, title_bn in (
+            (FeeTrack.BANGLA, "Bangla version", "বাংলা ভার্সন"),
+            (FeeTrack.ENGLISH, "English version", "ইংরেজি ভার্সন"),
+        ):
+            rows = FeeScheduleRow.objects.filter(track=track)
+            if not rows.exists():
+                continue
+            schedules.append(
+                {
+                    "track": track,
+                    "title": title_bn if lang == "bn" else title_en,
+                    "classes": FeeScheduleRowSerializer(rows, many=True, context=ctx).data,
+                }
+            )
         return Response(
             {
                 "default_fee": AdmissionFeeSerializer(default_fee, context=ctx).data
                 if default_fee
                 else None,
                 "fees": AdmissionFeeSerializer(fees, many=True, context=ctx).data,
+                "schedules": schedules,
                 "methods": PaymentMethodSerializer(
                     PaymentMethod.objects.filter(is_active=True).prefetch_related("details"),
                     many=True,

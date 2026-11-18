@@ -249,6 +249,39 @@ class AboutPage(BilingualMixin, models.Model):
         return "About page"
 
 
+class PersonPanel(models.TextChoices):
+    CHAIRMAN = "chairman", "Chairman"
+    PRINCIPAL = "principal", "Principal"
+    DIRECTOR = "director", "Director"
+    TEACHER = "teacher", "Teacher"
+    ADVISOR = "advisor", "Advisor"
+
+
+def panel_for_role(role_en: str, role_bn: str = "") -> str:
+    """Place a person by the role they hold at this school.
+
+    A title from another institution does not decide the panel. Someone who
+    is principal of another madrasa and an advisor here stays an advisor.
+    """
+    text = f"{role_en}\n{role_bn}".lower()
+    is_advisor = "advisor" in text or "উপদেষ্টা" in text
+    if not is_advisor and ("chairman" in text or "চেয়ারম্যান" in text):
+        return PersonPanel.CHAIRMAN
+    if not is_advisor and (
+        "principal" in text or "প্রিন্সিপাল" in text or "অধ্যক্ষ" in text
+    ):
+        return PersonPanel.PRINCIPAL
+    if not is_advisor and (
+        "teacher" in text or "শিক্ষক" in text or "উস্তাদ" in text or "উস্তাজা" in text
+    ):
+        return PersonPanel.TEACHER
+    if not is_advisor and ("director" in text or "পরিচালক" in text):
+        return PersonPanel.DIRECTOR
+    if is_advisor:
+        return PersonPanel.ADVISOR
+    return PersonPanel.DIRECTOR
+
+
 class Leader(BilingualMixin, models.Model):
     name_en = models.CharField(max_length=120)
     name_bn = models.CharField(max_length=120)
@@ -258,6 +291,11 @@ class Leader(BilingualMixin, models.Model):
     bio_bn = models.TextField(blank=True)
     photo = models.ImageField(upload_to="leaders/", blank=True)
     photo_url = models.URLField(blank=True)
+    panel = models.CharField(
+        max_length=20,
+        choices=PersonPanel.choices,
+        default=PersonPanel.ADVISOR,
+    )
     order = models.PositiveIntegerField(default=0)
 
     class Meta:

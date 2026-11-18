@@ -3,7 +3,13 @@ from decimal import Decimal, InvalidOperation
 from rest_framework import serializers
 
 from admissions.eligibility import expected_fee_amount, resolve_admission_grade
-from admissions.models import AdmissionApplication, AdmissionFee, Gender, PaymentMethod
+from admissions.models import (
+    AdmissionApplication,
+    AdmissionFee,
+    FeeScheduleRow,
+    Gender,
+    PaymentMethod,
+)
 
 # Magic-byte signatures for the file types we accept as a birth certificate.
 # Checked against real file content, not just the extension or the
@@ -11,7 +17,23 @@ from admissions.models import AdmissionApplication, AdmissionFee, Gender, Paymen
 _PDF_SIGNATURE = b"%PDF-"
 _JPEG_SIGNATURE = b"\xff\xd8\xff"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-_MAX_BIRTH_CERTIFICATE_BYTES = 6 * 1024 * 1024
+_MAX_DOCUMENT_BYTES = 6 * 1024 * 1024
+
+
+def _accepted_document(value, *, missing: str, invalid: str):
+    if not value:
+        raise serializers.ValidationError(missing)
+    if value.size > _MAX_DOCUMENT_BYTES:
+        raise serializers.ValidationError("The file is too large.")
+    head = value.read(8)
+    value.seek(0)
+    if not (
+        head.startswith(_PDF_SIGNATURE)
+        or head.startswith(_JPEG_SIGNATURE)
+        or head.startswith(_PNG_SIGNATURE)
+    ):
+        raise serializers.ValidationError(invalid)
+    return value
 
 
 def lang_of(request) -> str:
@@ -52,6 +74,25 @@ class AdmissionFeeSerializer(serializers.ModelSerializer):
 
     def get_display(self, obj):
         return obj.display_amount()
+
+
+class FeeScheduleRowSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeeScheduleRow
+        fields = ["name", "admission", "session", "monthly", "hifz"]
+
+    admission = serializers.IntegerField(source="admission_fee")
+    session = serializers.IntegerField(source="session_fee")
+    monthly = serializers.IntegerField(source="monthly_fee")
+    hifz = serializers.IntegerField(source="hifz_fee", allow_null=True)
+
+    def get_name(self, obj):
+        lang = "en" if (self.context.get("request") and self.context["request"].query_params.get("lang") == "en") else "bn"
+        if lang == "bn" and obj.name_bn:
+            return obj.name_bn
+        return obj.name_en
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -118,6 +159,9 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
             "previous_class",
             "applying_class",
             "student_photo",
+            "guardian_nid",
+            "guardian_photo",
+            "academic_documents",
             "student_address",
             "father_name",
             "mother_name",
@@ -141,6 +185,11 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
             "receipt_id",
         ]
         read_only_fields = ["application_id", "receipt_id", "status", "created_at"]
+        extra_kwargs = {
+            "guardian_nid": {"required": True},
+            "guardian_photo": {"required": True},
+            "academic_documents": {"required": False},
+        }
 
     def validate_gender(self, value):
         if value not in Gender.values:
@@ -148,21 +197,27 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_birth_certificate(self, value):
+        return _accepted_document(
+            value,
+            missing="Upload the birth certificate.",
+            invalid="Upload the birth certificate as a PDF, JPEG, or PNG file.",
+        )
+
+    def validate_guardian_nid(self, value):
+        return _accepted_document(
+            value,
+            missing="Upload the guardian's national ID.",
+            invalid="Upload the national ID as a PDF, JPEG, or PNG file.",
+        )
+
+    def validate_academic_documents(self, value):
         if not value:
-            raise serializers.ValidationError("Upload the birth certificate.")
-        if value.size > _MAX_BIRTH_CERTIFICATE_BYTES:
-            raise serializers.ValidationError("The file is too large.")
-        head = value.read(8)
-        value.seek(0)
-        if not (
-            head.startswith(_PDF_SIGNATURE)
-            or head.startswith(_JPEG_SIGNATURE)
-            or head.startswith(_PNG_SIGNATURE)
-        ):
-            raise serializers.ValidationError(
-                "Upload the birth certificate as a PDF, JPEG, or PNG file."
-            )
-        return value
+            return value
+        return _accepted_document(
+            value,
+            missing="",
+            invalid="Upload the marksheet and TC as a PDF, JPEG, or PNG file.",
+        )
 
     def validate_payment_method(self, value):
         if not PaymentMethod.objects.filter(code=value, is_active=True).exists():

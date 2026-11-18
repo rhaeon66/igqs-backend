@@ -29,6 +29,7 @@ urlpatterns = [
     path("home/", views.HomeView.as_view()),
     path("about/", views.AboutView.as_view()),
     path("curriculum/", views.CurriculumView.as_view()),
+    path("curriculum/instruction/", views.CurriculumInstructionView.as_view()),
     path("events/", views.EventListView.as_view()),
     path("events/<slug:slug>/", views.EventDetailView.as_view()),
     path("news/", views.NewsListView.as_view()),

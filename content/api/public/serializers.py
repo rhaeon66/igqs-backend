@@ -312,7 +312,7 @@ class LeaderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Leader
-        fields = ["id", "name", "role", "bio", "photo_url"]
+        fields = ["id", "name", "role", "bio", "photo_url", "panel"]
 
     def get_name(self, obj):
         return loc(obj, "name", lang_of(self.context))
