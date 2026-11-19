@@ -265,7 +265,7 @@ def school_info() -> dict:
             "name_bn": "আদর্শ গ্লোবাল কুরআনিক স্কুল",
             "address": "Dhaka, Bangladesh",
             "phones": "",
-            "email": "info@igqs.edu.bd",
+            "email": "igqs2025@gmail.com",
             "logo_path": None,
         }
     phones = site.phone_primary
